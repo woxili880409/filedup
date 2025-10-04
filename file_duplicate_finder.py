@@ -535,7 +535,7 @@ class FileDuplicateFinder:
             
             # 构建JSON输出格式
             output_data = {
-                "export_time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                "export_time": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 "duplicate_groups": duplicates,
                 "total_groups": len(duplicates)
             }
