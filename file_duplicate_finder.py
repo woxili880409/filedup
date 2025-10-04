@@ -515,6 +515,7 @@ class FileDuplicateFinder:
     def close(self):
         """关闭数据库连接"""
         if self.conn:
+            self.unregister_file_handler()
             self.conn.close()
             self.conn = None
             self.cursor = None
@@ -743,6 +744,7 @@ def main():
                         print()
     finally:
         finder.close()
+        
 
 
 if __name__ == "__main__":
