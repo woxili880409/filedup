@@ -9,16 +9,25 @@ import os
 import threading
 import queue
 from pathlib import Path
+import rw_interface
+import json
+
+# 注册的处理器文件名
+
+REGISTERED_HANDLERS_FILENAME="reg_handlers.json"
+FILE_FEATURES_DB_FILENAME="file_features.db"
 
 class FileDuplicateFinder:
-    def __init__(self, db_path='file_features.db', max_threads=4, hash_algorithm='md5', force_recalculate=False):
+    def __init__(self, db_path=FILE_FEATURES_DB_FILENAME, max_threads=4, hash_algorithm='md5', force_recalculate=False):
         self.db_path = db_path
         self.conn = None
         self.cursor = None
         self.max_threads = max_threads
         self.hash_algorithm = hash_algorithm
         self.force_recalculate = force_recalculate
+        self.register_handlers=[] #[{"ext":None,"handler":rw_interface.RWInterface}]
         self.initialize_database()
+        
         
     def get_existing_file_info(self):
         """获取数据库中所有文件的信息，用于在多线程扫描前判断是否需要重新计算哈希值和保存文件属性"""
@@ -544,11 +553,53 @@ class FileDuplicateFinder:
             print(f"导出重复文件到JSON时出错: {e}")
             return False
 
-
+    def register_file_handler(self):
+        """注册文件处理函数"""
+        reg_file=json.load(open(REGISTERED_HANDLERS_FILENAME,"r"))
+        for handler in reg_file["regs"]:
+            self.register_file_handler_by_json(handler)
+            
+    def register_file_handler_by_json(self,handler_json):
+        """注册文件处理函数"""
+        #根据json文件中的key:value，导入key模块，并注册文件处理器
+        handler_module = __import__(handler_json["module"])
+        handler_module.__path__ = os.path.dirname(handler_module.__file__)
+        handler_class:rw_interface.RWInterface = getattr(handler_module, handler_json["class"])
+        # handler:rw_interface.RWInterface=handler_class()
+        reged=handler_class.register_extension()
+        self.register_handlers.append({"ext":reged["ext"],"handler":reged["handler"]})
+        print(f"注册文件处理器: {handler_json['ext']}")
+    def unregister_file_handler(self):
+        """注销文件处理函数"""
+        if not self.register_handlers:
+            print("未注册文件处理器")
+            return
+        for h in self.register_handlers:
+            print(f"注销文件处理器: {h['ext']}")
+            h["handler"].unregister_extension()
+            self.register_handlers.remove(h)
+            break
+            
+    def handle_file(self, file_path,mode='r',data=None):
+        """处理文件"""
+        handled = None
+        for h in self.register_handlers:
+            if any(file_path.lower().endswith(ext) for ext in h["ext"]):
+                handled = h["handler"].handle_file(file_path,mode,data)
+                if handled:
+                    break
+        else:    
+            if mode == 'r':
+                print(f"使用默认文件处理器读取文件内容: {file_path}")
+                handled = self.read_file_content(file_path)
+            else:
+                print(f"未找到模式为'{mode}'的处理器: {file_path}")
+        return handled
+            
 def main():
     parser = argparse.ArgumentParser(description='查找并管理重复文件')
     parser.add_argument('directory', help='要扫描的目录路径')
-    parser.add_argument('--db', default='file_features.db', help='数据库文件路径')
+    parser.add_argument('--db', default=FILE_FEATURES_DB_FILENAME, help='数据库文件路径')
     parser.add_argument('--find-duplicates', action='store_true', help='仅查找重复文件')
     parser.add_argument('--compare', action='store_true', help='比较目录与数据库')
     parser.add_argument('--update', action='store_true', help='更新数据库')
@@ -574,12 +625,15 @@ def main():
     )
     
     try:
+        # 注册文件处理器
+        finder.register_file_handler()
+        
         # 读取文件内容操作
         if args.read_file:
             file_path = os.path.abspath(args.read_file)
-            content = finder.read_file_content(file_path)
-            if content:
-                print(f"\n文件内容: {file_path}\n{'-' * 50}\n{content}\n{'-' * 50}")
+            handled = finder.handle_file(file_path,'r',None)
+            if handled:
+                print(f"\n文件内容: {file_path}\n{'-' * 50}\n{handled}\n{'-' * 50}")
             return
             
         # 检查数据库是否存在

@@ -27,6 +27,8 @@ def create_test_directory(base_path):
         
     with open(os.path.join(base_path, "image.jpg"), "w") as f:
         f.write("这是一个模拟的图像文件内容")
+        
+    shutil.copy2(os.path.join(os.path.dirname(__file__) , "./word_test.docx"), os.path.join(base_path, "document.docx") )
     
     # 2. 创建子目录和重复文件
     subdir1 = os.path.join(base_path, "subdir1")
@@ -68,7 +70,8 @@ def run_command(command):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            shell=False
+            shell=False,
+            encoding="utf-8"
         )
         if result.stdout:
             print("输出:")
@@ -84,7 +87,7 @@ def run_command(command):
 def main():
     # 测试目录路径
     test_dir = os.path.join(os.getcwd(), "test_files")
-    db_file = "test_db.json"
+    db_file = "test_db.db"
     
     # 确保测试数据文件不存在
     if os.path.exists(db_file):
@@ -112,6 +115,7 @@ proc = subprocess.Popen(
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
+    encoding="utf-8",
     text=True
 )
 
@@ -173,6 +177,7 @@ proc = subprocess.Popen(
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
+    encoding="utf-8",
     text=True
 )
 
@@ -183,7 +188,7 @@ if error:
     print(error)
 """ % (test_dir, db_file)
     
-    with open("auto_compare.py", "w") as f:
+    with open("auto_compare.py", "w", encoding="utf-8") as f:
         f.write(auto_compare_script)
     
     # 运行自动比较脚本
@@ -194,7 +199,7 @@ if error:
     print("\n" + "="*60)
     print("步骤6: 读取文件内容")
     print("="*60)
-    file_to_read = os.path.join(test_dir, "original.txt")
+    file_to_read = os.path.join(test_dir, "document.docx")
     run_command([sys.executable, "file_duplicate_finder.py", test_dir, "--read-file", file_to_read, "--db", db_file])
     
     # 步骤7: 清理（可选）
