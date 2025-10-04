@@ -1,16 +1,26 @@
+# File Duplicate FinderFile Duplicate Finder
 # 文件重复查找器
+
+An efficient file duplicate finder developed in Python, which can scan all files in a directory, generate file features and store them in a SQLite database, and then identify duplicate files based on hash values.
 
 一个用Python开发的高效文件重复查找工具，可以扫描目录中的所有文件，生成文件特征并存储到SQLite数据库中，然后根据哈希值识别重复文件。
 
 ## 功能特点
 
 1. **文件特征提取**：遍历指定目录及子目录，提取文件的创建时间、修改时间、所有者等属性，并为每个文件生成唯一的哈希值
+Traverse the specified directory and its subdirectories, extract the creation time, modification time, owner, etc. of the files, and generate a unique hash value for each file.
 2. **数据存储**：将文件特征保存到SQLite数据库中，便于后续查询和比较
+Store the file features in a SQLite database for easy querying and comparison.
 3. **重复文件识别**：根据文件哈希值快速识别重复文件，并显示详细特征信息
+Identify duplicate files based on hash values quickly and display detailed feature information.
 4. **变更检测**：支持与之前存储的数据对比，检测目录中的文件变更（新增、删除、更新）
+Support comparing the directory with the previous data to detect changes (add, delete, update) in the files.
 5. **数据更新**：可根据目录中的实际文件更新SQLite数据库
+Update the SQLite database based on the actual files in the directory.
 6. **文件内容查看**：提供接口查看指定文件的内容
+Provide an interface to view the content of a specified file.
 7. **JSON导出**：支持将重复文件信息导出为JSON格式文件，便于后续分析或与其他系统集成
+Support exporting the duplicate file information in JSON format for analysis or integration with other systems.
 
 ## 系统要求
 
