@@ -11,6 +11,7 @@ import queue
 from pathlib import Path
 import rw_interface
 import json
+from prograss import ProgressBar
 
 # 注册的处理器文件名
 
@@ -27,7 +28,7 @@ class FileDuplicateFinder:
         self.force_recalculate = force_recalculate
         self.register_handlers=[] #[{"ext":None,"handler":rw_interface.RWInterface}]
         self.initialize_database()
-        
+        self.progress_bar=None   
         
     def get_existing_file_info(self):
         """获取数据库中所有文件的信息，用于在多线程扫描前判断是否需要重新计算哈希值和保存文件属性"""
@@ -125,6 +126,8 @@ class FileDuplicateFinder:
         while True:
             try:
                 file_path = file_queue.get(block=False)
+                if self.progress_bar:
+                    self.progress_bar.update()
                 try:
                     # 获取文件属性
                     file_stats = os.stat(file_path)
@@ -335,6 +338,8 @@ class FileDuplicateFinder:
         for file_path in all_files:
             file_queue.put(file_path)
         
+        self.progress_bar = ProgressBar(total_files)
+               
         # 创建并启动工作线程
         threads = []
         for _ in range(min(self.max_threads, total_files)):
@@ -348,14 +353,19 @@ class FileDuplicateFinder:
         for thread in threads:
             thread.join()
         
+        # 关闭进度条
+        if self.progress_bar:
+            self.progress_bar.finish()
+
         # 处理结果并保存到数据库
+        print("处理结果并保存到数据库...")
         files_processed = 0
         while not result_queue.empty():
             attributes = result_queue.get()
             if self.save_file_attributes(attributes):
                 files_processed += 1
                 if files_processed % 100 == 0:
-                    print(f"已处理 {files_processed}/{total_files} 个文件...")
+                    print(f"\r已处理 {files_processed}/{total_files} 个文件...", end='')
         
         print(f"扫描完成，共处理 {files_processed} 个文件。")
         return files_processed
@@ -570,6 +580,7 @@ class FileDuplicateFinder:
         reged=handler_class.register_extension()
         self.register_handlers.append({"ext":reged["ext"],"handler":reged["handler"]})
         print(f"注册文件处理器: {handler_json['ext']}")
+
     def unregister_file_handler(self):
         """注销文件处理函数"""
         if not self.register_handlers:
@@ -616,10 +627,17 @@ def main():
     
     # 确保目录路径是绝对路径
     directory_path = os.path.abspath(args.directory)
+    if not os.path.isdir(directory_path):
+        print(f"错误: 目录 '{directory_path}' 不存在。")
+        return
+    # 确保数据库文件路径是绝对路径
+    db_path = os.path.join(directory_path,args.db)
+    if not os.path.isabs(db_path):
+        db_path = os.path.abspath(db_path)
     
     # 初始化文件重复查找器
     finder = FileDuplicateFinder(
-        db_path=args.db, 
+        db_path=db_path, 
         max_threads=args.threads, 
         hash_algorithm=args.hash_algorithm,
         force_recalculate=args.force_recalculate
