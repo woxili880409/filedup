@@ -1,4 +1,4 @@
-# File Duplicate FinderFile Duplicate Finder
+# File Duplicate Finder
 # 文件重复查找器
 
 An efficient file duplicate finder developed in Python, which can scan all files in a directory, generate file features and store them in a SQLite database, and then identify duplicate files based on hash values.
