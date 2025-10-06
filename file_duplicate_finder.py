@@ -1,3 +1,4 @@
+from itertools import batched
 import os
 import hashlib
 import sqlite3
@@ -53,6 +54,13 @@ class FileDuplicateFinder:
         """初始化SQLite数据库，创建文件特征表"""
         try:
             self.conn = sqlite3.connect(self.db_path)
+            # 启用WAL模式，提高并发性能
+            self.conn.execute('PRAGMA journal_mode = WAL')
+            # 增加缓存大小到约64MB（负值表示KB）
+            self.conn.execute('PRAGMA cache_size = -65536')
+            # 设置同步模式为NORMAL，平衡性能和安全性
+            self.conn.execute('PRAGMA synchronous = NORMAL')
+            
             self.cursor = self.conn.cursor()
             # 创建文件特征表
             self.cursor.execute('''
@@ -72,12 +80,12 @@ class FileDuplicateFinder:
         except sqlite3.Error as e:
             print(f"数据库初始化错误: {e}")
     
-    def calculate_file_hash(self, file_path, block_size=65536, hash_algorithm='md5'):
+    def calculate_file_hash(self, file_path, block_size=1048576, hash_algorithm='md5'):
         """计算文件的哈希值
         
         Args:
             file_path: 文件路径
-            block_size: 读取块大小，默认65536字节
+            block_size: 读取块大小，默认1048576字节
             hash_algorithm: 哈希算法，可选'md5'、'sha1'、'sha256'，默认'md5'
             
         Returns:
@@ -228,7 +236,7 @@ class FileDuplicateFinder:
             print(f"无法获取文件所有者 {file_path}: {e}")
             return "unknown"
     
-    def get_file_attributes(self, file_path):
+    def get_file_attributes(self, file_path,recalculate_hash=True):
         """获取文件的属性信息"""
         try:
             file_stats = os.stat(file_path)
@@ -239,7 +247,11 @@ class FileDuplicateFinder:
             
             file_size = file_stats.st_size
             file_owner = self.get_file_owner(file_path)
-            file_hash = self.calculate_file_hash(file_path)
+            # 计算哈希值
+            if recalculate_hash:
+                file_hash = self.calculate_file_hash(file_path)
+            else:
+                file_hash = None
             current_time = datetime.datetime.now().isoformat()
             
             return {
@@ -257,7 +269,7 @@ class FileDuplicateFinder:
             return None
     
     def save_file_attributes(self, attributes):
-        """保存文件属性到数据库，支持选择性更新"""
+        """保存文件属性到数据库，支持选择性更新（单文件版本）"""
         if not attributes or 'file_hash' not in attributes or attributes['file_hash'] is None:
             return False
             
@@ -305,9 +317,70 @@ class FileDuplicateFinder:
             print(f"保存文件属性错误: {e}")
             self.conn.rollback()
             return False
+            
+    def batch_save_file_attributes(self, attributes_list,show_ditail=False):
+        """批量保存文件属性到数据库，使用事务提高性能"""
+        if not attributes_list:
+            return False
+            
+        try:
+            # 开始事务
+            self.cursor.execute('BEGIN TRANSACTION')
+            
+            for attributes in attributes_list:
+                if show_ditail:
+                    print(f"处理文件: {attributes['file_path']}")
+                if not attributes or 'file_hash' not in attributes or attributes['file_hash'] is None:
+                    continue
+                    
+                # 检查文件是否已存在于数据库中
+                self.cursor.execute("SELECT id FROM file_features WHERE file_path = ?", (attributes['file_path'],))
+                existing_file = self.cursor.fetchone()
+                
+                if existing_file:
+                    # 检查是否需要全面更新
+                    if 'needs_update' in attributes and not attributes['needs_update']:
+                        # 只更新last_checked时间
+                        self.cursor.execute(
+                            "UPDATE file_features SET last_checked = ? WHERE file_path = ?",
+                            (attributes['last_checked'], attributes['file_path'])
+                        )
+                        continue
+                    
+                    # 更新现有文件的所有属性
+                    self.cursor.execute('''
+                        UPDATE file_features
+                        SET file_size = ?, created_time = ?, modified_time = ?, accessed_time = ?,
+                            owner = ?, file_hash = ?, last_checked = ?
+                        WHERE file_path = ?
+                    ''', (
+                        attributes['file_size'], attributes['created_time'], attributes['modified_time'],
+                        attributes['accessed_time'], attributes['owner'], attributes['file_hash'],
+                        attributes['last_checked'], attributes['file_path']
+                    ))
+                else:
+                    # 插入新文件
+                    self.cursor.execute('''
+                        INSERT INTO file_features (
+                            file_path, file_size, created_time, modified_time, accessed_time,
+                            owner, file_hash, last_checked
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        attributes['file_path'], attributes['file_size'], attributes['created_time'],
+                        attributes['modified_time'], attributes['accessed_time'], attributes['owner'],
+                        attributes['file_hash'], attributes['last_checked']
+                    ))
+            
+            # 一次性提交所有更改
+            self.conn.commit()
+            return True
+        except sqlite3.Error as e:
+            print(f"批量保存文件属性错误: {e}")
+            self.conn.rollback()
+            return False
     
     def scan_directory(self, directory_path):
-        """扫描目录及其子目录中的所有文件（多线程版本）"""
+        """扫描目录及其子目录中的所有文件（多线程版本，支持批量处理）"""
         if not os.path.isdir(directory_path):
             print(f"目录不存在: {directory_path}")
             return 0
@@ -349,7 +422,7 @@ class FileDuplicateFinder:
             thread.start()
             threads.append(thread)
         
-        # 等待所有线程完成
+        # 等待所有工作线程完成
         for thread in threads:
             thread.join()
         
@@ -357,18 +430,32 @@ class FileDuplicateFinder:
         if self.progress_bar:
             self.progress_bar.finish()
 
-        # 处理结果并保存到数据库
-        print("处理结果并保存到数据库...")
-        files_processed = 0
+        # 批量处理结果
+        batch_size = 1000  # 每批处理的文件数
+        attributes_batch = []
+        processed_count = 0
+        
+        print("开始批量保存文件属性...")
         while not result_queue.empty():
             attributes = result_queue.get()
-            if self.save_file_attributes(attributes):
-                files_processed += 1
-                if files_processed % 100 == 0:
-                    print(f"\r已处理 {files_processed}/{total_files} 个文件...", end='')
+            if attributes:
+                attributes_batch.append(attributes)
+                processed_count += 1
+                
+                # 当达到批处理大小时，批量保存
+                if len(attributes_batch) >= batch_size:
+                    self.batch_save_file_attributes(attributes_batch)
+                    attributes_batch = []
+                    # 显示进度
+                    print(f"已保存 {processed_count}/{total_files} 个文件的属性")
         
-        print(f"扫描完成，共处理 {files_processed} 个文件。")
-        return files_processed
+        # 保存剩余的文件属性
+        if attributes_batch:
+            self.batch_save_file_attributes(attributes_batch)
+            print(f"已保存 {processed_count}/{total_files} 个文件的属性")
+        
+        print(f"处理完成，共保存 {processed_count} 个文件的属性。")
+        return processed_count
     
     def find_duplicate_files(self):
         """查找数据库中的重复文件"""
@@ -411,7 +498,7 @@ class FileDuplicateFinder:
             print(f"查找重复文件错误: {e}")
             return []
     
-    def compare_with_database(self, directory_path):
+    def compare_with_database(self, directory_path, recalculate_hash=True):
         """比较目录中的文件与数据库中的记录"""
         if not os.path.isdir(directory_path):
             print(f"目录不存在: {directory_path}")
@@ -442,7 +529,7 @@ class FileDuplicateFinder:
         for file_path in common_files:
             try:
                 # 获取当前文件信息
-                current_attr = self.get_file_attributes(file_path)
+                current_attr = self.get_file_attributes(file_path, recalculate_hash=recalculate_hash)
                 
                 # 获取数据库中的文件信息
                 self.cursor.execute(
@@ -453,9 +540,15 @@ class FileDuplicateFinder:
                 
                 if db_info and current_attr:
                     # 检查是否有更新
+                    if not recalculate_hash:
+                        # 如果不需要重新计算哈希值，只比较文件大小和修改时间
+                        hash_changed = False
+                    else:
+                        hash_changed = (db_info[2] != current_attr['file_hash'])
+                        
                     if (db_info[0] != current_attr['file_size'] or 
                         db_info[1] != current_attr['modified_time'] or 
-                        db_info[2] != current_attr['file_hash']):
+                        hash_changed):
                         updated_files.append(file_path)
             except Exception as e:
                 print(f"比较文件时出错 {file_path}: {e}")
@@ -469,7 +562,7 @@ class FileDuplicateFinder:
     def update_database(self, directory_path):
         """更新数据库以匹配当前目录状态"""
         # 首先删除数据库中已不存在的文件
-        comparison = self.compare_with_database(directory_path)
+        comparison = self.compare_with_database(directory_path, recalculate_hash=False)
         
         # 删除已不存在的文件记录
         for deleted_file in comparison['deleted']:
@@ -480,19 +573,37 @@ class FileDuplicateFinder:
         
         # 处理新增和更新的文件
         files_to_update = comparison['new'] + comparison['updated']
-        updated_count = 0
+        batch_size = 1000  # 每批处理的文件数
+        attributes_batch = []
+        processed_count = 0
+        
+        print("正在更新数据库...")
         
         for file_path in files_to_update:
             try:
-                attributes = self.get_file_attributes(file_path)
+                attributes = self.get_file_attributes(file_path, recalculate_hash=True)
                 if attributes:
-                    if self.save_file_attributes(attributes):
-                        updated_count += 1
+                    attributes_batch.append(attributes)
+                    processed_count += 1
+                    
+                    # 当批次满时，批量插入
+                    if processed_count % batch_size == 0:
+                        self.batch_save_file_attributes(attributes_batch, show_ditail=True)
+                        attributes_batch = []
+                        # 显示进度
+                        print(f"已更新 {processed_count}/{len(files_to_update)} 个文件的属性")                        
             except Exception as e:
                 print(f"更新文件记录错误 {file_path}: {e}")
         
+        # 处理剩余的文件
+        if attributes_batch:
+            self.batch_save_file_attributes(attributes_batch, show_ditail=True)
+            attributes_batch = []
+            # 显示进度
+            print(f"已更新 {processed_count}/{len(files_to_update)} 个文件的属性")                        
+        
         self.conn.commit()
-        print(f"数据库更新完成，删除了 {len(comparison['deleted'])} 个文件记录，更新了 {updated_count} 个文件记录。")
+        print(f"数据库更新完成，删除了 {len(comparison['deleted'])} 个文件记录，更新了 {processed_count} 个文件记录。")
     
     def read_file_content(self, file_path, max_lines=100):
         """读取文件内容"""
@@ -656,12 +767,12 @@ def main():
             return
             
         # 检查数据库是否存在
-        db_exists = os.path.exists(args.db)
+        db_exists = os.path.exists(db_path)
         
         # 导出重复文件到JSON
         if args.export_duplicates:
             if not db_exists:
-                print(f"错误: 数据库文件 '{args.db}' 不存在，请先扫描目录创建数据库。")
+                print(f"错误: 数据库文件 '{db_path}' 不存在，请先扫描目录创建数据库。")
                 return
             
             print("正在查找重复文件...")
