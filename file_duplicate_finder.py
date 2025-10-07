@@ -684,6 +684,9 @@ class FileDuplicateFinder:
     def register_file_handler_by_json(self,handler_json):
         """注册文件处理函数"""
         #根据json文件中的key:value，导入key模块，并注册文件处理器
+        if not handler_json["enabled"]:
+            # print(f"文件处理器 {handler_json['ext']} 已禁用，不注册")
+            return
         handler_module = __import__(handler_json["module"])
         handler_module.__path__ = os.path.dirname(handler_module.__file__)
         handler_class:rw_interface.RWInterface = getattr(handler_module, handler_json["class"])

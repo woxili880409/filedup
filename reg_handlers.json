@@ -5,7 +5,8 @@
             "desc": "This handler is used to handle doc、docx、wps documents.",
             "module": "rw_docx_wps",
             "class": "RWDocxWps",
-            "ext": ["doc", "docx", "wps"]
+            "ext": ["doc", "docx", "wps"],
+            "enabled": false
         }
     ]
 }
