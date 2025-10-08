@@ -1,4 +1,3 @@
-from itertools import batched
 import os
 import hashlib
 import sqlite3
@@ -10,15 +9,13 @@ import os
 import threading
 import queue
 from pathlib import Path
-import prograss
-import rw_interface
 import json
+from tkinter import NO
 from prograss import ProgressBar
-
+# from itertools import batched
 # 注册的处理器文件名
-
-REGISTERED_HANDLERS_FILENAME="reg_handlers.json"
-FILE_FEATURES_DB_FILENAME="file_features.db"
+from global_vars import FILE_FEATURES_DB_FILENAME, log_print
+from rw_reg_handlers import RWRegHandlers
 
 class FileDuplicateFinder:
     def __init__(self, db_path=FILE_FEATURES_DB_FILENAME, max_threads=4, hash_algorithm='md5', force_recalculate=False):
@@ -28,9 +25,11 @@ class FileDuplicateFinder:
         self.max_threads = max_threads
         self.hash_algorithm = hash_algorithm
         self.force_recalculate = force_recalculate
-        self.register_handlers=[] #[{"ext":None,"handler":rw_interface.RWInterface}]
+        # self.register_handlers=[] #[{"ext":None,"handler":rw_interface.RWInterface}]
+        self.progress_bar=None
+        self.rw_reg_handlers = RWRegHandlers() # 注册文件处理器
         self.initialize_database()
-        self.progress_bar=None   
+        
         
     def get_existing_file_info(self):
         """获取数据库中所有文件的信息，用于在多线程扫描前判断是否需要重新计算哈希值和保存文件属性"""
@@ -165,14 +164,14 @@ class FileDuplicateFinder:
                            
                             # 所有属性都未变更，使用数据库中的哈希值
                             file_hash = existing_info['hash']
-                            print(f"跳过哈希计算和数据库更新 {file_path} (所有属性未变更)")
+                            log_print(f"跳过哈希计算和数据库更新 {file_path} (所有属性未变更)")
                             need_recalculate = False
                             needs_update = False  # 不需要更新数据库
                         else:
                             # 属性有变更，但大小或修改时间未变，可能只需要更新其他属性
                             if existing_info['size'] == file_size and existing_info['modified_time'] == modified_time:
                                 file_hash = existing_info['hash']
-                                print(f"跳过哈希计算 {file_path} (大小和修改时间未变更)")
+                                log_print(f"跳过哈希计算 {file_path} (大小和修改时间未变更)")
                                 need_recalculate = False
                             else:
                                 need_recalculate = True
@@ -615,38 +614,38 @@ class FileDuplicateFinder:
         self.conn.commit()
         print(f"数据库更新完成，删除了 {len(comparison['deleted'])} 个文件记录，更新了 {processed_count} 个文件记录。")
     
-    def read_file_content(self, file_path, max_lines=100):
-        """读取文件内容"""
-        if not os.path.isfile(file_path):
-            print(f"文件不存在: {file_path}")
-            return None
+    # def read_file_content(self, file_path, max_lines=100):
+    #     """读取文件内容"""
+    #     if not os.path.isfile(file_path):
+    #         print(f"文件不存在: {file_path}")
+    #         return None
         
-        try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                lines = []
-                for i, line in enumerate(file):
-                    if i >= max_lines:
-                        lines.append("... 内容过长，已截断 ...")
-                        break
-                    lines.append(line.rstrip('\n\r'))
-                return '\n'.join(lines)
-        except UnicodeDecodeError:
-            # 尝试使用二进制模式读取文本文件
-            try:
-                with open(file_path, 'rb') as file:
-                    content = file.read(4096)  # 只读取前4KB
-                    return f"二进制文件内容 (前4KB): {content.hex()[:500]}..."
-            except Exception as e:
-                print(f"无法读取文件 {file_path}: {e}")
-                return None
-        except Exception as e:
-            print(f"无法读取文件 {file_path}: {e}")
-            return None
+    #     try:
+    #         with open(file_path, 'r', encoding='utf-8') as file:
+    #             lines = []
+    #             for i, line in enumerate(file):
+    #                 if i >= max_lines:
+    #                     lines.append("... 内容过长，已截断 ...")
+    #                     break
+    #                 lines.append(line.rstrip('\n\r'))
+    #             return '\n'.join(lines)
+    #     except UnicodeDecodeError:
+    #         # 尝试使用二进制模式读取文本文件
+    #         try:
+    #             with open(file_path, 'rb') as file:
+    #                 content = file.read(4096)  # 只读取前4KB
+    #                 return f"二进制文件内容 (前4KB): {content.hex()[:500]}..."
+    #         except Exception as e:
+    #             print(f"无法读取文件 {file_path}: {e}")
+    #             return None
+    #     except Exception as e:
+    #         print(f"无法读取文件 {file_path}: {e}")
+    #         return None
     
     def close(self):
         """关闭数据库连接"""
         if self.conn:
-            self.unregister_file_handler()
+            self.rw_reg_handlers.unregister_file_handler()
             self.conn.close()
             self.conn = None
             self.cursor = None
@@ -685,56 +684,52 @@ class FileDuplicateFinder:
             print(f"导出重复文件到JSON时出错: {e}")
             return False
 
-    def register_file_handler(self):
-        """注册文件处理函数"""
-        reg_file=json.load(open(REGISTERED_HANDLERS_FILENAME,"r"))
-        for handler in reg_file["regs"]:
-            self.register_file_handler_by_json(handler)
+    # def register_file_handler(self):
+    #     """注册文件处理函数"""
+    #     reg_file=json.load(open(REGISTERED_HANDLERS_FILENAME,"r"))
+    #     for handler in reg_file["regs"]:
+    #         self.register_file_handler_by_json(handler)
             
-    def register_file_handler_by_json(self,handler_json):
-        """注册文件处理函数"""
-        #根据json文件中的key:value，导入key模块，并注册文件处理器
-        if not handler_json["enabled"]:
-            # print(f"文件处理器 {handler_json['ext']} 已禁用，不注册")
-            return
-        handler_module = __import__(handler_json["module"])
-        handler_module.__path__ = os.path.dirname(handler_module.__file__)
-        handler_class:rw_interface.RWInterface = getattr(handler_module, handler_json["class"])
-        # handler:rw_interface.RWInterface=handler_class()
-        reged=handler_class.register_extension()
-        self.register_handlers.append({"ext":reged["ext"],"handler":reged["handler"]})
-        print(f"注册文件处理器: {handler_json['ext']}")
+    # def register_file_handler_by_json(self,handler_json):
+    #     """注册文件处理函数"""
+    #     #根据json文件中的key:value，导入key模块，并注册文件处理器
+    #     if not handler_json["enabled"]:
+    #         # print(f"文件处理器 {handler_json['ext']} 已禁用，不注册")
+    #         return
+    #     handler_module = __import__(handler_json["module"])
+    #     handler_module.__path__ = os.path.dirname(handler_module.__file__)
+    #     handler_class:rw_interface.RWInterface = getattr(handler_module, handler_json["class"])
+    #     # handler:rw_interface.RWInterface=handler_class()
+    #     reged=handler_class.register_extension()
+    #     self.register_handlers.append({"ext":reged["ext"],"handler":reged["handler"]})
+    #     print(f"注册文件处理器: {handler_json['ext']}")
 
-    def unregister_file_handler(self):
-        """注销文件处理函数"""
-        if not self.register_handlers:
-            print("未注册文件处理器")
-            return
-        for h in self.register_handlers:
-            print(f"注销文件处理器: {h['ext']}")
-            h["handler"].unregister_extension()
-            self.register_handlers.remove(h)
-            break
+    # def unregister_file_handler(self):
+    #     """注销文件处理函数"""
+    #     if not self.register_handlers:
+    #         log_print("未注册文件处理器")
+    #         return
+    #     for h in self.register_handlers:
+    #         print(f"注销文件处理器: {h['ext']}")
+    #         h["handler"].unregister_extension()
+    #         self.register_handlers.remove(h)
+    #         break
             
     def handle_file(self, file_path,mode='r',data=None):
         """处理文件"""
-        handled = None
-        for h in self.register_handlers:
-            if any(file_path.lower().endswith(ext) for ext in h["ext"]):
-                handled = h["handler"].handle_file(file_path,mode,data)
-                if handled:
-                    break
-        else:    
-            if mode == 'r':
-                print(f"使用默认文件处理器读取文件内容: {file_path}")
-                handled = self.read_file_content(file_path)
-            else:
-                print(f"未找到模式为'{mode}'的处理器: {file_path}")
-        return handled
+        handled = self.rw_reg_handlers.handle_file(file_path,mode,data)
+        if handled:
+            return handled[0], handled[1]
+        return None, None
 
-    def calc_files_hash(self,recalc_queue,result_queue,total_files=0):
-        
-        
+    def thread_calc_files_hash(self,recalc_queue,result_queue,total_files=0):
+        """
+        多线程计算文件哈希值
+        参数:
+            recalc_queue: 包含需要计算哈希值的文件路径的队列
+            result_queue: 用于存储计算结果的队列
+            total_files: 总文件数，用于进度条显示
+        """
         prograss=ProgressBar(total_files)
         
         def calc_file_hash(recalc_queue,result_queue):
@@ -753,7 +748,7 @@ class FileDuplicateFinder:
             threads.append(thread)
             thread.start()
         
-        for _ in range(self.max_threads):
+        for _ in range(self.max_threads+1):
             recalc_queue.put(None)
             
         for t in threads:
@@ -762,7 +757,12 @@ class FileDuplicateFinder:
 
     def only_search_changed_files(self, directory_path):
         """
-        仅搜索目录中修改时间大于last_checked_time的文件
+        搜索目录中与数据库中文件特征不一致的文件
+        
+        参数:
+            directory_path: 要搜索的目录路径
+        返回:
+            list: 发生变化的文件列表
         """
         # 获取数据库中所有文件路径和完整属性
         self.cursor.execute("SELECT file_path, modified_time, file_size, file_hash FROM file_features")
@@ -807,7 +807,7 @@ class FileDuplicateFinder:
         for file_path in changed_files:
             hash_queue.put(file_path)
         
-        self.calc_files_hash(hash_queue, result_queue)
+        self.thread_calc_files_hash(hash_queue, result_queue)
         changed_files = []
         while not result_queue.empty():
             file_path, fhash = result_queue.get()
@@ -857,14 +857,11 @@ def main():
     )
     
     try:
-        # 注册文件处理器
-        finder.register_file_handler()
-        
         # 读取文件内容操作
         if args.read_file:
             file_path = os.path.abspath(args.read_file)
-            handled = finder.handle_file(file_path,'r',None)
-            if handled:
+            file_type, handled = finder.handle_file(file_path,'r',None)
+            if file_type == 'text' and handled:
                 print(f"\n文件内容: {file_path}\n{'-' * 50}\n{handled}\n{'-' * 50}")
             return
             

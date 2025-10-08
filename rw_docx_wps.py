@@ -120,23 +120,23 @@ class RWDocxWps(rw_interface.RWInterface):
         return True: 处理成功。
         """
         if not self.can_handle(filename):
-            return None
+            return None, None
 
         if 'w' in mode:
             file_object = self.open(filename, mode)
             if file_object is None:
-                return None
+                return None, None
             self.write(file_object, data)
             self.close(file_object)
-            return True
+            return ('text',data)
         elif 'r' in mode:
             file_object = self.open(filename, mode)
             if file_object is None:
-                return None
+                return None, None
             data = self.read(file_object)
             self.close(file_object)
-            return data
+            return ('text',data)
         else:
-            return None
+            return None, None
 
 

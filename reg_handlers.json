@@ -6,7 +6,15 @@
             "module": "rw_docx_wps",
             "class": "RWDocxWps",
             "ext": ["doc", "docx", "wps"],
-            "enabled": false
+            "enabled": true
+        },
+        {
+            "name": "Image Handler",
+            "desc": "This handler is used to handle image files.",
+            "module": "rw_img",
+            "class": "RWImg",
+            "ext": ["bmp", "jpg", "jpeg", "png", "gif", "tiff", "webp", "ppm", "pgm", "pbm", "pnm", "svg"],
+            "enabled": true
         }
     ]
 }

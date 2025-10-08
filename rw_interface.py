@@ -63,12 +63,12 @@ class RWInterface:
         pass
     
     def handle_file(self, filename: str, mode: str, data: any = None):
-        """
+        f"""
         处理指定文件。
         filename: 文件路径。
         mode: 文件打开模式，'r'为读取，'w'为写入。
         data: 写入文件的内容，仅在mode为'w'时有效。
-        return False: 处理失败。
-        return True: 处理成功。
+        return None,None: 处理失败。
+        return ('img|text|audio|video',data): 处理成功。
         """
         pass
