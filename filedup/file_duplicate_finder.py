@@ -614,34 +614,6 @@ class FileDuplicateFinder:
         self.conn.commit()
         print(f"数据库更新完成，删除了 {len(comparison['deleted'])} 个文件记录，更新了 {processed_count} 个文件记录。")
     
-    # def read_file_content(self, file_path, max_lines=100):
-    #     """读取文件内容"""
-    #     if not os.path.isfile(file_path):
-    #         print(f"文件不存在: {file_path}")
-    #         return None
-        
-    #     try:
-    #         with open(file_path, 'r', encoding='utf-8') as file:
-    #             lines = []
-    #             for i, line in enumerate(file):
-    #                 if i >= max_lines:
-    #                     lines.append("... 内容过长，已截断 ...")
-    #                     break
-    #                 lines.append(line.rstrip('\n\r'))
-    #             return '\n'.join(lines)
-    #     except UnicodeDecodeError:
-    #         # 尝试使用二进制模式读取文本文件
-    #         try:
-    #             with open(file_path, 'rb') as file:
-    #                 content = file.read(4096)  # 只读取前4KB
-    #                 return f"二进制文件内容 (前4KB): {content.hex()[:500]}..."
-    #         except Exception as e:
-    #             print(f"无法读取文件 {file_path}: {e}")
-    #             return None
-    #     except Exception as e:
-    #         print(f"无法读取文件 {file_path}: {e}")
-    #         return None
-    
     def close(self):
         """关闭数据库连接"""
         if self.conn:
@@ -684,37 +656,6 @@ class FileDuplicateFinder:
             print(f"导出重复文件到JSON时出错: {e}")
             return False
 
-    # def register_file_handler(self):
-    #     """注册文件处理函数"""
-    #     reg_file=json.load(open(REGISTERED_HANDLERS_FILENAME,"r"))
-    #     for handler in reg_file["regs"]:
-    #         self.register_file_handler_by_json(handler)
-            
-    # def register_file_handler_by_json(self,handler_json):
-    #     """注册文件处理函数"""
-    #     #根据json文件中的key:value，导入key模块，并注册文件处理器
-    #     if not handler_json["enabled"]:
-    #         # print(f"文件处理器 {handler_json['ext']} 已禁用，不注册")
-    #         return
-    #     handler_module = __import__(handler_json["module"])
-    #     handler_module.__path__ = os.path.dirname(handler_module.__file__)
-    #     handler_class:rw_interface.RWInterface = getattr(handler_module, handler_json["class"])
-    #     # handler:rw_interface.RWInterface=handler_class()
-    #     reged=handler_class.register_extension()
-    #     self.register_handlers.append({"ext":reged["ext"],"handler":reged["handler"]})
-    #     print(f"注册文件处理器: {handler_json['ext']}")
-
-    # def unregister_file_handler(self):
-    #     """注销文件处理函数"""
-    #     if not self.register_handlers:
-    #         log_print("未注册文件处理器")
-    #         return
-    #     for h in self.register_handlers:
-    #         print(f"注销文件处理器: {h['ext']}")
-    #         h["handler"].unregister_extension()
-    #         self.register_handlers.remove(h)
-    #         break
-            
     def handle_file(self, file_path,mode='r',data=None):
         """处理文件"""
         handled = self.rw_reg_handlers.handle_file(file_path,mode,data)

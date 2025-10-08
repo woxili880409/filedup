@@ -1,8 +1,7 @@
 import sys
 import os
-import sys, os
 sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..')))   # 把 repo/ 塞进 path
+    os.path.join(os.path.dirname(__file__), '..',"filedup")))   # 把 repo/ 塞进 path
 
 import json
 import shutil
@@ -15,7 +14,6 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QFont, QColor, QIcon, QImage, QPixmap
-# from rw_interface import FileHandler, FileFeatures
 from rw_reg_handlers import RWRegHandlers
 import base64
 
@@ -186,7 +184,12 @@ class DuplicateFileHandler(QMainWindow):
         
         # 创建退出动作
         exit_action = file_menu.addAction('退出')
-        exit_action.triggered.connect(self.close)
+        exit_action.triggered.connect(self.close_window)
+        
+    def close_window(self):
+        """关闭窗口"""
+        self.rw_reg_handlers.unregister_file_handler()
+        self.close()
     
     def load_duplicate_file(self):
         """通过菜单打开JSON文件"""
