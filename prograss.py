@@ -9,6 +9,8 @@ class ProgressBar:
 
     def update(self, step=1):
         with self.lock:
+            if self.total == 0:
+                return
             self.current += step
             print('\r[{0:<{1}}] {2:.2f}%'.format('#' * int(self.current / self.total * 100), 100, self.current / self.total * 100), end='')
 

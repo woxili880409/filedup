@@ -10,6 +10,7 @@ import os
 import threading
 import queue
 from pathlib import Path
+import prograss
 import rw_interface
 import json
 from prograss import ProgressBar
@@ -159,8 +160,9 @@ class FileDuplicateFinder:
                         if (existing_info['size'] == file_size and 
                             existing_info['modified_time'] == modified_time and
                             existing_info['created_time'] == created_time and
-                            existing_info['accessed_time'] == accessed_time and
-                            existing_info['owner'] == file_owner):
+                             existing_info['owner'] == file_owner):
+                            # existing_info['accessed_time'] == accessed_time and
+                           
                             # 所有属性都未变更，使用数据库中的哈希值
                             file_hash = existing_info['hash']
                             print(f"跳过哈希计算和数据库更新 {file_path} (所有属性未变更)")
@@ -274,8 +276,11 @@ class FileDuplicateFinder:
             return False
             
         try:
-            # 检查文件是否已存在于数据库中
-            self.cursor.execute("SELECT id FROM file_features WHERE file_path = ?", (attributes['file_path'],))
+            # 规范化文件路径，确保在数据库中存储一致的格式
+            normalized_path = os.path.normpath(attributes['file_path'])
+            
+            # 检查文件是否已存在于数据库中（使用规范化后的路径）
+            self.cursor.execute("SELECT id FROM file_features WHERE file_path = ?", (normalized_path,))
             existing_file = self.cursor.fetchone()
             
             if existing_file:
@@ -284,7 +289,7 @@ class FileDuplicateFinder:
                     # 只更新last_checked时间
                     self.cursor.execute(
                         "UPDATE file_features SET last_checked = ? WHERE file_path = ?",
-                        (attributes['last_checked'], attributes['file_path'])
+                        (attributes['last_checked'], normalized_path)
                     )
                     return True
                     
@@ -297,17 +302,17 @@ class FileDuplicateFinder:
                 ''', (
                     attributes['file_size'], attributes['created_time'], attributes['modified_time'],
                     attributes['accessed_time'], attributes['owner'], attributes['file_hash'],
-                    attributes['last_checked'], attributes['file_path']
+                    attributes['last_checked'], normalized_path
                 ))
             else:
-                # 插入新文件
+                # 插入新文件（使用规范化后的路径）
                 self.cursor.execute('''
                     INSERT INTO file_features (
                         file_path, file_size, created_time, modified_time, accessed_time,
                         owner, file_hash, last_checked
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
-                    attributes['file_path'], attributes['file_size'], attributes['created_time'],
+                    normalized_path, attributes['file_size'], attributes['created_time'],
                     attributes['modified_time'], attributes['accessed_time'], attributes['owner'],
                     attributes['file_hash'], attributes['last_checked']
                 ))
@@ -332,9 +337,12 @@ class FileDuplicateFinder:
                     print(f"处理文件: {attributes['file_path']}")
                 if not attributes or 'file_hash' not in attributes or attributes['file_hash'] is None:
                     continue
-                    
-                # 检查文件是否已存在于数据库中
-                self.cursor.execute("SELECT id FROM file_features WHERE file_path = ?", (attributes['file_path'],))
+                     
+                # 规范化文件路径，确保在数据库中存储一致的格式
+                normalized_path = os.path.normpath(attributes['file_path'])
+                
+                # 检查文件是否已存在于数据库中（使用规范化后的路径）
+                self.cursor.execute("SELECT id FROM file_features WHERE file_path = ?", (normalized_path,))
                 existing_file = self.cursor.fetchone()
                 
                 if existing_file:
@@ -343,10 +351,10 @@ class FileDuplicateFinder:
                         # 只更新last_checked时间
                         self.cursor.execute(
                             "UPDATE file_features SET last_checked = ? WHERE file_path = ?",
-                            (attributes['last_checked'], attributes['file_path'])
+                            (attributes['last_checked'], normalized_path)
                         )
                         continue
-                    
+                     
                     # 更新现有文件的所有属性
                     self.cursor.execute('''
                         UPDATE file_features
@@ -356,17 +364,17 @@ class FileDuplicateFinder:
                     ''', (
                         attributes['file_size'], attributes['created_time'], attributes['modified_time'],
                         attributes['accessed_time'], attributes['owner'], attributes['file_hash'],
-                        attributes['last_checked'], attributes['file_path']
+                        attributes['last_checked'], normalized_path
                     ))
                 else:
-                    # 插入新文件
+                    # 插入新文件（使用规范化后的路径）
                     self.cursor.execute('''
                         INSERT INTO file_features (
                             file_path, file_size, created_time, modified_time, accessed_time,
                             owner, file_hash, last_checked
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
-                        attributes['file_path'], attributes['file_size'], attributes['created_time'],
+                        normalized_path, attributes['file_size'], attributes['created_time'],
                         attributes['modified_time'], attributes['accessed_time'], attributes['owner'],
                         attributes['file_hash'], attributes['last_checked']
                     ))
@@ -391,6 +399,8 @@ class FileDuplicateFinder:
             for file in files:
                 file_path = os.path.join(root, file)
                 if os.path.isfile(file_path) and not os.path.islink(file_path):
+                    if os.name == 'nt':
+                        file_path = os.path.realpath(file_path)  # 确保路径是真实路径名称
                     all_files.append(file_path)
         
         total_files = len(all_files)
@@ -588,7 +598,7 @@ class FileDuplicateFinder:
                     
                     # 当批次满时，批量插入
                     if processed_count % batch_size == 0:
-                        self.batch_save_file_attributes(attributes_batch, show_ditail=True)
+                        self.batch_save_file_attributes(attributes_batch, show_ditail=False)
                         attributes_batch = []
                         # 显示进度
                         print(f"已更新 {processed_count}/{len(files_to_update)} 个文件的属性")                        
@@ -597,7 +607,7 @@ class FileDuplicateFinder:
         
         # 处理剩余的文件
         if attributes_batch:
-            self.batch_save_file_attributes(attributes_batch, show_ditail=True)
+            self.batch_save_file_attributes(attributes_batch, show_ditail=False)
             attributes_batch = []
             # 显示进度
             print(f"已更新 {processed_count}/{len(files_to_update)} 个文件的属性")                        
@@ -721,6 +731,91 @@ class FileDuplicateFinder:
             else:
                 print(f"未找到模式为'{mode}'的处理器: {file_path}")
         return handled
+
+    def calc_files_hash(self,recalc_queue,result_queue,total_files=0):
+        
+        
+        prograss=ProgressBar(total_files)
+        
+        def calc_file_hash(recalc_queue,result_queue):
+            while True:
+                file_path=recalc_queue.get()
+                if file_path is None:
+                    break
+                fhash=self.calculate_file_hash(file_path)
+                result_queue.put((file_path,fhash))
+                recalc_queue.task_done()
+                prograss.update()
+        
+        threads=[]
+        for _ in range(self.max_threads):
+            thread = threading.Thread(target=calc_file_hash, args=(recalc_queue,result_queue))
+            threads.append(thread)
+            thread.start()
+        
+        for _ in range(self.max_threads):
+            recalc_queue.put(None)
+            
+        for t in threads:
+            t.join()
+        prograss.finish()
+
+    def only_search_changed_files(self, directory_path):
+        """
+        仅搜索目录中修改时间大于last_checked_time的文件
+        """
+        # 获取数据库中所有文件路径和完整属性
+        self.cursor.execute("SELECT file_path, modified_time, file_size, file_hash FROM file_features")
+        db_files = {row[0]: {'modified_time': row[1], 'file_size': row[2], 'file_hash': row[3]} for row in self.cursor.fetchall()}
+        
+        # 扫描目录中的文件
+        current_files = set()
+        for root, _, files in os.walk(directory_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if os.path.isfile(file_path) and not os.path.islink(file_path):
+                    # 规范化文件路径，确保与数据库中的路径格式一致
+                    normalized_path = os.path.normpath(file_path)
+                    current_files.add(normalized_path)
+                
+        # 转换为集合以确保正确的集合操作
+        db_files_set = set(db_files.keys())
+        
+        # 计算新增文件和删除文件
+        new_files = current_files - db_files_set
+        delete_files = db_files_set - current_files
+        
+        # 计算存在于数据库和当前目录中的文件
+        db_exist_files = current_files & db_files_set
+        changed_files = []
+        
+        # 对比数据库中的文件，找出当前目录中与数据库中文件特征不一致的文件
+        for file_path in db_exist_files:
+            db_file_attr = db_files[file_path]
+            current_file_attr = self.get_file_attributes(file_path, recalculate_hash=False)
+            
+            if current_file_attr and (
+                current_file_attr['modified_time'] > db_file_attr['modified_time'] or \
+                current_file_attr['file_size'] != db_file_attr['file_size']
+            ):
+                changed_files.append(file_path)
+                
+        # 计算文件哈希值
+        result_queue = queue.Queue()
+        # 创建一个新的队列并填充文件路径
+        hash_queue = queue.Queue()
+        for file_path in changed_files:
+            hash_queue.put(file_path)
+        
+        self.calc_files_hash(hash_queue, result_queue)
+        changed_files = []
+        while not result_queue.empty():
+            file_path, fhash = result_queue.get()
+            # 比较新计算的哈希值与数据库中存储的哈希值
+            if fhash != db_files[file_path]['file_hash']:
+                changed_files.append(file_path)
+                
+        return changed_files+list(new_files)+list(delete_files)
             
 def main():
     parser = argparse.ArgumentParser(description='查找并管理重复文件')
@@ -728,6 +823,7 @@ def main():
     parser.add_argument('--db', default=FILE_FEATURES_DB_FILENAME, help='数据库文件路径')
     parser.add_argument('--find-duplicates', action='store_true', help='仅查找重复文件')
     parser.add_argument('--compare', action='store_true', help='比较目录与数据库')
+    parser.add_argument('--chenged', action='store_true', help='搜索目录中发生变化的文件')    
     parser.add_argument('--update', action='store_true', help='更新数据库')
     parser.add_argument('--read-file', help='读取指定文件的内容')
     parser.add_argument('--threads', type=int, default=4, help='哈希计算的最大线程数（默认：4）')
@@ -741,6 +837,9 @@ def main():
     
     # 确保目录路径是绝对路径
     directory_path = os.path.abspath(args.directory)
+    #获取windows系统下的真实路径
+    if os.name == 'nt':
+        directory_path = os.path.realpath(directory_path)
     if not os.path.isdir(directory_path):
         print(f"错误: 目录 '{directory_path}' 不存在。")
         return
@@ -782,7 +881,22 @@ def main():
             json_file_path = os.path.abspath(args.export_duplicates)
             finder.export_duplicates_to_json(json_file_path)
             return
-            
+        
+        if args.chenged:
+            # 仅搜索目录中发生变化的文件
+            if not db_exists:
+                print(f"错误: 数据库文件 '{db_path}' 不存在，请先扫描目录创建数据库。")
+                return
+                            
+            changed_files=finder.only_search_changed_files(directory_path)
+            if not changed_files:
+                print("未找到发生变化的文件。")
+            else:
+                print(f"找到 {len(changed_files)} 个发生变化的文件:\n")
+                for file_path in changed_files:  
+                    print(f"  - {file_path}")
+            return
+        
         if args.find_duplicates:
             # 仅查找重复文件
             print("正在查找重复文件...")
