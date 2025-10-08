@@ -21,6 +21,12 @@ Update the SQLite database based on the actual files in the directory.
 Provide an interface to view the content of a specified file.
 7. **JSON导出**：支持将重复文件信息导出为JSON格式文件，便于后续分析或与其他系统集成
 Support exporting the duplicate file information in JSON format for analysis or integration with other systems.
+8. **增加重复文件GUI界面**：提供GUI界面，方便用户管理重复文件
+Provide a GUI interface for managing duplicate files.
+9. **批量文件选择**：提供"反选"和"取消选择"按钮，方便用户快速管理文件选择状态
+Provide "Invert Selection" and "Clear Selection" buttons for quick file selection management.
+10. **右键菜单操作**：支持在文件列表中右键点击项目，快速执行"在资源管理器中打开文件所在目录"和"在文件所在目录打开命令行"操作
+Support right-click context menu operations for quick access to file explorer and command line from the file's directory.
 
 ## 系统要求
 
@@ -122,7 +128,13 @@ python file_duplicate_finder.py D:\Documents --export-duplicates duplicates.json
 ```bash
 python file_duplicate_finder.py <目录路径> --db my_custom_data.db
 ```
+### 打开重复文件处理GUI界面
 
+打开独立的GUI界面，方便管理重复文件：
+
+```bash
+python .\gui_dupl\handler_dupl.py
+```
 ## 命令行参数
 
 以下是所有可用的命令行参数及其说明：
