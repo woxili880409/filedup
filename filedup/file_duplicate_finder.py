@@ -15,7 +15,7 @@ from tkinter import NO
 from filedup.prograss import ProgressBar
 # from itertools import batched
 # 注册的处理器文件名
-from filedup.global_vars import FILE_FEATURES_DB_FILENAME, log_print
+from filedup.global_vars import FILE_FEATURES_DB_FILENAME, FILE_DUMP_FILENAME, log_print
 from filedup.rw_reg_handlers import RWRegHandlers
 
 class FileDuplicateFinder:
@@ -759,6 +759,31 @@ class FileDuplicateFinder:
                 
         return changed_files+list(new_files)+list(delete_files)
 
+    def remove_file_from_database(self, file_path):
+        """
+        从数据库中删除指定文件的记录
+        
+        参数:
+            file_path: 要从数据库中删除的文件路径
+        
+        返回:
+            bool: 删除是否成功
+        """
+        try:
+            # 规范化文件路径，确保与数据库中的路径格式一致
+            normalized_path = os.path.normpath(file_path)
+            
+            # 执行删除操作
+            self.cursor.execute("DELETE FROM file_features WHERE file_path = ?", (normalized_path,))
+            self.conn.commit()
+            
+            # 检查是否有记录被删除
+            return self.cursor.rowcount > 0
+        except sqlite3.Error as e:
+            print(f"从数据库中删除文件记录错误 {file_path}: {e}")
+            self.conn.rollback()
+            return False
+
 def add_args(parser,dir=None):
     """添加命令行参数"""
     if dir is None:
@@ -775,13 +800,17 @@ def add_args(parser,dir=None):
     parser.add_argument('--hash-algorithm', default='md5', choices=['md5', 'sha1', 'sha256'], 
                         help='哈希计算算法（默认：md5）')
     parser.add_argument('--force-recalculate', action='store_true', help='强制重新计算所有文件的哈希值')
-    parser.add_argument('--export-duplicates', help='将重复文件导出到指定的JSON文件')
+    parser.add_argument('--export-duplicates', default=FILE_DUMP_FILENAME, help='将重复文件导出到指定的JSON文件')
     parser.add_argument('--no-find-duplicates', action='store_true', help='扫描后不自动查找重复文件（默认会自动查找）')
             
 def main(dir=None):
     """主函数"""
     parser = argparse.ArgumentParser(description='查找并管理重复文件')
-    add_args(parser,dir)
+    
+    # 只有当dir参数为空时，才让parser处理所有参数
+    # 这允许从run.py传递参数
+    add_args(parser, dir)
+    
     try:
         args = parser.parse_args()
     except argparse.ArgumentError as e:
@@ -798,8 +827,12 @@ def main(dir=None):
         return
     # 确保数据库文件路径是绝对路径
     db_path = os.path.join(directory_path,args.db)
+    json_file_path = os.path.join(directory_path,args.export_duplicates)
+    
     if not os.path.isabs(db_path):
         db_path = os.path.abspath(db_path)
+    if not os.path.isabs(json_file_path):
+        json_file_path = os.path.abspath(json_file_path)
     
     # 初始化文件重复查找器
     finder = FileDuplicateFinder(
@@ -822,13 +855,13 @@ def main(dir=None):
         db_exists = os.path.exists(db_path)
         
         # 导出重复文件到JSON
-        if args.export_duplicates:
+        if args.export_duplicates!=FILE_DUMP_FILENAME:
             if not db_exists:
                 print(f"错误: 数据库文件 '{db_path}' 不存在，请先扫描目录创建数据库。")
                 return
             
             print("正在查找重复文件...")
-            json_file_path = os.path.abspath(args.export_duplicates)
+            
             finder.export_duplicates_to_json(json_file_path)
             return
         
@@ -865,6 +898,8 @@ def main(dir=None):
                         print(f"    修改时间: {file_info['modified']}")
                         print(f"    所有者: {file_info['owner']}")
                     print()
+ 
+                finder.export_duplicates_to_json(json_file_path)
         elif args.compare:
             # 比较目录与数据库
             if not db_exists:
@@ -908,6 +943,8 @@ def main(dir=None):
                 update = input("\n是否要根据目录文件更新数据库？(y/n): ").lower()
                 if update == 'y':
                     finder.update_database(directory_path)
+ 
+                    finder.export_duplicates_to_json(json_file_path)
         elif args.update:
             # 更新数据库
             if not db_exists:
@@ -916,6 +953,8 @@ def main(dir=None):
                 
             print(f"正在更新数据库以匹配目录 '{directory_path}'...")
             finder.update_database(directory_path)
+                       
+            finder.export_duplicates_to_json(json_file_path)
         else:
             # 默认行为：扫描目录
             print(f"正在扫描目录 '{directory_path}' 及其子目录...")
@@ -938,6 +977,8 @@ def main(dir=None):
                         if len(group['files']) > 3:
                             print(f"  ... 还有 {len(group['files']) - 3} 个文件")
                         print()
+                        
+                    finder.export_duplicates_to_json(json_file_path)
     finally:
         finder.close()
         

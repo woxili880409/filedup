@@ -1,6 +1,7 @@
 
 REGISTERED_HANDLERS_FILENAME="reg_handlers.json"
-FILE_FEATURES_DB_FILENAME="file_features.db"
+FILE_FEATURES_DB_FILENAME="_file_features.db"
+FILE_DUMP_FILENAME="_file_dump.json"
 
 
 LOG_LEVEL_DEBUG=0

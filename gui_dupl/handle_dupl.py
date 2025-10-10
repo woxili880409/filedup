@@ -14,7 +14,9 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QFont, QColor, QIcon, QImage, QPixmap
+from filedup.file_duplicate_finder import FileDuplicateFinder
 from filedup.rw_reg_handlers import RWRegHandlers
+from filedup.global_vars import FILE_FEATURES_DB_FILENAME
 import base64
 
 # 添加发送到回收站功能
@@ -35,6 +37,10 @@ class DuplicateFileHandler(QMainWindow):
         self.selected_files = set()  # 存储选中的文件路径
         self.rw_reg_handlers = RWRegHandlers()
         self.dest_dir = None
+        # 添加FileDuplicateFinder实例引用
+        self.file_finder = None
+        # 默认数据库文件名
+        self.db_filename = FILE_FEATURES_DB_FILENAME
     
     def init_ui(self):
         # 设置窗口标题和大小
@@ -173,6 +179,10 @@ class DuplicateFileHandler(QMainWindow):
 
     def set_dest_dir(self, dest_dir):
         self.dest_dir = dest_dir
+        # 设置了目标目录后，初始化FileDuplicateFinder实例
+        if dest_dir:
+            db_path = os.path.join(dest_dir, self.db_filename)
+            self.file_finder = FileDuplicateFinder(db_path=db_path)
            
     def create_menus(self):
         """创建菜单"""
@@ -192,8 +202,11 @@ class DuplicateFileHandler(QMainWindow):
     
     #注册window事件
     def closeEvent(self, event):
-        """关闭窗口时注销文件处理器"""
+        """关闭窗口时注销文件处理器并关闭数据库连接"""
         self.rw_reg_handlers.unregister_file_handler()
+        # 关闭数据库连接
+        if self.file_finder:
+            self.file_finder.close()
         event.accept()
         
     def close_window(self):
@@ -210,6 +223,10 @@ class DuplicateFileHandler(QMainWindow):
         if json_path:
             try:
                 self.dest_dir = os.path.dirname(json_path)
+                # 初始化FileDuplicateFinder实例
+                db_path = os.path.join(self.dest_dir, self.db_filename)
+                self.file_finder = FileDuplicateFinder(db_path=db_path)
+                
                 with open(json_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.duplicate_groups = data.get('duplicate_groups', [])
@@ -410,16 +427,24 @@ class DuplicateFileHandler(QMainWindow):
             self.image_scroll_area.hide()
     
     def select_oldest_files(self):
-        """选中每组中最早的文件"""
+        """选中每组中最早的文件，只选择过滤后可见的文件"""
         self.clear_selection()
         
         for group_idx in range(self.file_tree.topLevelItemCount()):
             group_item = self.file_tree.topLevelItem(group_idx)
+            # 跳过隐藏的组
+            if group_item.isHidden():
+                continue
+                
             oldest_time = None
             oldest_item = None
             
             for file_idx in range(group_item.childCount()):
                 file_item = group_item.child(file_idx)
+                # 只处理可见的文件项
+                if file_item.isHidden():
+                    continue
+                    
                 file_path = file_item.data(0, Qt.UserRole)
                 
                 # 获取修改时间
@@ -438,16 +463,24 @@ class DuplicateFileHandler(QMainWindow):
                 self.selected_files.add(oldest_item.data(0, Qt.UserRole))
     
     def select_newest_files(self):
-        """选中每组中最晚的文件"""
+        """选中每组中最晚的文件，只选择过滤后可见的文件"""
         self.clear_selection()
         
         for group_idx in range(self.file_tree.topLevelItemCount()):
             group_item = self.file_tree.topLevelItem(group_idx)
+            # 跳过隐藏的组
+            if group_item.isHidden():
+                continue
+                
             newest_time = None
             newest_item = None
             
             for file_idx in range(group_item.childCount()):
                 file_item = group_item.child(file_idx)
+                # 只处理可见的文件项
+                if file_item.isHidden():
+                    continue
+                    
                 file_path = file_item.data(0, Qt.UserRole)
                 
                 # 获取修改时间
@@ -464,7 +497,7 @@ class DuplicateFileHandler(QMainWindow):
             if newest_item:
                 newest_item.setCheckState(0, Qt.Checked)
                 self.selected_files.add(newest_item.data(0, Qt.UserRole))
-    
+                
     def clear_selection(self):
         """清除所有选择"""
         self.selected_files.clear()
@@ -476,13 +509,21 @@ class DuplicateFileHandler(QMainWindow):
                 file_item.setCheckState(0, Qt.Unchecked)
                 
     def invert_selection(self):
-        """反选所有文件"""
+        """反选所有文件，只反选过滤后可见的文件"""
         new_selected_files = set()
         
         for group_idx in range(self.file_tree.topLevelItemCount()):
             group_item = self.file_tree.topLevelItem(group_idx)
+            # 跳过隐藏的组
+            if group_item.isHidden():
+                continue
+                
             for file_idx in range(group_item.childCount()):
                 file_item = group_item.child(file_idx)
+                # 只处理可见的文件项
+                if file_item.isHidden():
+                    continue
+                    
                 file_path = file_item.data(0, Qt.UserRole)
                 
                 # 反转选中状态
@@ -543,6 +584,9 @@ class DuplicateFileHandler(QMainWindow):
                     success_count += 1
                     # 从列表中移除已删除的文件
                     self.remove_file_from_tree(file_path)
+                    # 从数据库中移除记录
+                    if self.file_finder:
+                        self.file_finder.remove_file_from_database(file_path)
                 except Exception as e:
                     fail_count += 1
                     print(f"删除文件失败: {file_path}, 错误: {str(e)}")
@@ -609,9 +653,12 @@ class DuplicateFileHandler(QMainWindow):
                 operation_func(file_path, target_path)
                 success_count += 1
                 
-                # 如果是移动操作，从树中移除文件
+                # 如果是移动操作，从树中移除文件并从数据库中删除记录
                 if operation_func == shutil.move:
                     self.remove_file_from_tree(file_path)
+                    # 从数据库中移除记录
+                    if self.file_finder:
+                        self.file_finder.remove_file_from_database(file_path)
             except Exception as e:
                 fail_count += 1
                 print(f"操作失败: {file_path}, 错误: {str(e)}")
