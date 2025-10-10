@@ -14,3 +14,7 @@ def log_print(*args, **kwargs):
     """打印日志"""
     if LOG_LEVEL<=LOG_LEVEL_INFO:
         print(*args, **kwargs)
+        
+#目前版本号
+#更新时间：2025-10-10
+VERSION="0.1.0"
