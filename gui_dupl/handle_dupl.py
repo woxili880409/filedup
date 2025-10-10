@@ -1,7 +1,7 @@
 import sys
 import os
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..',"filedup")))   # 把 repo/ 塞进 path
+# sys.path.insert(0, os.path.abspath(
+#     os.path.join(os.path.dirname(__file__), '..',"filedup")))   # 把 repo/ 塞进 path
 
 import json
 import shutil
@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QFont, QColor, QIcon, QImage, QPixmap
-from rw_reg_handlers import RWRegHandlers
+from filedup.rw_reg_handlers import RWRegHandlers
 import base64
 
 # 添加发送到回收站功能
@@ -34,6 +34,7 @@ class DuplicateFileHandler(QMainWindow):
         self.duplicate_groups = []
         self.selected_files = set()  # 存储选中的文件路径
         self.rw_reg_handlers = RWRegHandlers()
+        self.dest_dir = None
     
     def init_ui(self):
         # 设置窗口标题和大小
@@ -169,6 +170,9 @@ class DuplicateFileHandler(QMainWindow):
         
         # 添加状态栏
         self.statusBar().showMessage('就绪')
+
+    def set_dest_dir(self, dest_dir):
+        self.dest_dir = dest_dir
            
     def create_menus(self):
         """创建菜单"""
@@ -185,19 +189,27 @@ class DuplicateFileHandler(QMainWindow):
         # 创建退出动作
         exit_action = file_menu.addAction('退出')
         exit_action.triggered.connect(self.close_window)
+    
+    #注册window事件
+    def closeEvent(self, event):
+        """关闭窗口时注销文件处理器"""
+        self.rw_reg_handlers.unregister_file_handler()
+        event.accept()
         
     def close_window(self):
         """关闭窗口"""
-        self.rw_reg_handlers.unregister_file_handler()
+        # self.rw_reg_handlers.unregister_file_handler()
         self.close()
     
     def load_duplicate_file(self):
         """通过菜单打开JSON文件"""
+        
         json_path, _ = QFileDialog.getOpenFileName(
-            self, "选择重复文件JSON", "", "JSON Files (*.json);;All Files (*)")
+            self, "选择重复文件JSON", self.dest_dir, "JSON Files (*.json);;All Files (*)")
             
         if json_path:
             try:
+                self.dest_dir = os.path.dirname(json_path)
                 with open(json_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.duplicate_groups = data.get('duplicate_groups', [])
@@ -637,8 +649,16 @@ class DuplicateFileHandler(QMainWindow):
                         self.file_tree.takeTopLevelItem(group_idx)
                     return
 
-if __name__ == '__main__':
+
+
+def main(dir=None):
+    """主函数"""
     app = QApplication(sys.argv)
     window = DuplicateFileHandler()
+    if dir:
+        window.set_dest_dir(dir)
     window.show()
     sys.exit(app.exec_())
+
+if __name__ == '__main__':
+    main()

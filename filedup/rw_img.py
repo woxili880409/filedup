@@ -2,7 +2,7 @@ import os
 import io
 import base64
 from PIL import Image
-import rw_interface
+import filedup.rw_interface as rw_interface
 
 FILE_TYPES = ['bmp', 'jpg', 'jpeg', 'png', 'gif', 'tiff', 'webp', 'ppm', 'pgm', 'pbm', 'pnm', 'svg']
 

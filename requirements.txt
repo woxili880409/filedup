@@ -1,2 +1,15 @@
+# GUI相关依赖
 PyQt5>=5.15.0
+
+# 系统功能依赖
 winshell>=0.6
+pywin32>=300  # 提供win32com.client，用于处理Word和WPS文档
+
+# 图像处理依赖
+Pillow>=8.0.0  # 提供PIL，用于图像处理
+
+# 核心功能依赖（使用Python标准库）
+# - sqlite3 (标准库)
+# - hashlib (标准库)
+# - os (标准库)
+# - json (标准库)

@@ -3,7 +3,7 @@
         {
             "name": "Word, Wps Document Handler",
             "desc": "This handler is used to handle doc、docx、wps documents.",
-            "module": "rw_docx_wps",
+            "module": "filedup.rw_docx_wps",
             "class": "RWDocxWps",
             "ext": ["doc", "docx", "wps"],
             "enabled": true
@@ -11,7 +11,7 @@
         {
             "name": "Image Handler",
             "desc": "This handler is used to handle image files.",
-            "module": "rw_img",
+            "module": "filedup.rw_img",
             "class": "RWImg",
             "ext": ["bmp", "jpg", "jpeg", "png", "gif", "tiff", "webp", "ppm", "pgm", "pbm", "pnm", "svg"],
             "enabled": true

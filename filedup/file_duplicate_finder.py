@@ -1,4 +1,5 @@
 import os
+import sys
 import hashlib
 import sqlite3
 import datetime
@@ -11,11 +12,11 @@ import queue
 from pathlib import Path
 import json
 from tkinter import NO
-from prograss import ProgressBar
+from filedup.prograss import ProgressBar
 # from itertools import batched
 # 注册的处理器文件名
-from global_vars import FILE_FEATURES_DB_FILENAME, log_print
-from rw_reg_handlers import RWRegHandlers
+from filedup.global_vars import FILE_FEATURES_DB_FILENAME, log_print
+from filedup.rw_reg_handlers import RWRegHandlers
 
 class FileDuplicateFinder:
     def __init__(self, db_path=FILE_FEATURES_DB_FILENAME, max_threads=4, hash_algorithm='md5', force_recalculate=False):
@@ -757,10 +758,13 @@ class FileDuplicateFinder:
                 changed_files.append(file_path)
                 
         return changed_files+list(new_files)+list(delete_files)
-            
-def main():
-    parser = argparse.ArgumentParser(description='查找并管理重复文件')
-    parser.add_argument('directory', help='要扫描的目录路径')
+
+def add_args(parser,dir=None):
+    """添加命令行参数"""
+    if dir is None:
+        parser.add_argument('directory', help='要扫描的目录路径')
+    else:
+        parser.add_argument('directory', default=dir, help='要扫描的目录路径')
     parser.add_argument('--db', default=FILE_FEATURES_DB_FILENAME, help='数据库文件路径')
     parser.add_argument('--find-duplicates', action='store_true', help='仅查找重复文件')
     parser.add_argument('--compare', action='store_true', help='比较目录与数据库')
@@ -773,8 +777,16 @@ def main():
     parser.add_argument('--force-recalculate', action='store_true', help='强制重新计算所有文件的哈希值')
     parser.add_argument('--export-duplicates', help='将重复文件导出到指定的JSON文件')
     parser.add_argument('--no-find-duplicates', action='store_true', help='扫描后不自动查找重复文件（默认会自动查找）')
-    
-    args = parser.parse_args()
+            
+def main(dir=None):
+    """主函数"""
+    parser = argparse.ArgumentParser(description='查找并管理重复文件')
+    add_args(parser,dir)
+    try:
+        args = parser.parse_args()
+    except argparse.ArgumentError as e:
+        log_print(f"参数错误: {e}")
+        sys.exit(1)
     
     # 确保目录路径是绝对路径
     directory_path = os.path.abspath(args.directory)

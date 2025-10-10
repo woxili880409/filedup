@@ -1,6 +1,6 @@
 import os
 import win32com.client
-import rw_interface
+import filedup.rw_interface as rw_interface
 
 FILE_TYPES=['doc','docx','wps']
 

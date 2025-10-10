@@ -1,7 +1,7 @@
 import os
 import json
-import rw_interface
-from global_vars import REGISTERED_HANDLERS_FILENAME, log_print, FILE_FEATURES_DB_FILENAME
+import filedup.rw_interface
+from filedup.global_vars import REGISTERED_HANDLERS_FILENAME, log_print, FILE_FEATURES_DB_FILENAME
 
 class RWRegHandlers:
     """注册文件处理器"""
@@ -21,10 +21,10 @@ class RWRegHandlers:
         if not handler_json["enabled"]:
             # print(f"文件处理器 {handler_json['ext']} 已禁用，不注册")
             return
-        handler_module = __import__(handler_json["module"])
-        handler_module.__path__ = os.path.dirname(handler_module.__file__)
-        handler_class:rw_interface.RWInterface = getattr(handler_module, handler_json["class"])
-        # handler:rw_interface.RWInterface=handler_class()
+        # 正确导入子模块，使用fromlist参数确保导入的是子模块而不是包
+        handler_module = __import__(handler_json["module"], fromlist=[''])
+        # 移除错误的__path__设置
+        handler_class:filedup.rw_interface.RWInterface = getattr(handler_module, handler_json["class"])
         reged=handler_class.register_extension()
         self.register_handlers.append({"ext":reged["ext"],"handler":reged["handler"]})
         print(f"注册文件处理器: {handler_json['ext']}")
@@ -37,8 +37,8 @@ class RWRegHandlers:
         for h in self.register_handlers:
             print(f"注销文件处理器: {h['ext']}")
             h["handler"].unregister_extension()
-            self.register_handlers.remove(h)
-            break
+            # self.register_handlers.remove(h)
+            
         
     def default_file_handler(self, file_path, max_lines=100):
         """读取文件内容"""       
