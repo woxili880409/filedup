@@ -27,13 +27,39 @@ Provide a GUI interface for managing duplicate files.
 Provide "Invert Selection" and "Clear Selection" buttons for quick file selection management.
 10. **右键菜单操作**：支持在文件列表中右键点击项目，快速执行"在资源管理器中打开文件所在目录"和"在文件所在目录打开命令行"操作
 Support right-click context menu operations for quick access to file explorer and command line from the file's directory.
+11. **可扩展的文件处理器**：采用模块化设计，支持通过JSON配置文件注册不同类型文件的处理器，当前支持Word/WPS文档和图像文件处理
+Modular design with JSON-configurable file handlers, currently supporting Word/WPS documents and image files.
 
 ## 系统要求
 
 - Python 3.6 或更高版本
-- 无需安装额外依赖库（使用Python标准库，包括sqlite3）
+- 依赖库：
+  - PyQt5 >= 5.15.0（用于GUI界面）
+  - winshell >= 0.6（用于回收站功能）
+  - pywin32 >= 300（用于Word/WPS文档处理）
+  - Pillow >= 8.0.0（用于图像处理）
+
+## 安装依赖
+
+使用pip安装项目所需的依赖：
+
+```bash
+pip install -r requirements.txt
+```
 
 ## 使用方法
+
+### 主入口点
+
+本项目提供了统一的主入口点`run.py`，可以通过命令行参数选择运行命令行模式或图形界面模式：
+
+```bash
+# 以命令行模式运行
+python run.py [参数]
+
+# 以图形界面模式运行
+python run.py --gui
+```
 
 ### 基本扫描
 在默认情况下，程序会自动查找重复文件并存储到数据库中。
@@ -48,19 +74,19 @@ Support right-click context menu operations for quick access to file explorer an
 扫描指定目录并创建文件特征数据，默认情况下会自动查找重复文件：
 
 ```bash
-python file_duplicate_finder.py <目录路径>
+python run.py <目录路径>
 ```
 
 例如：
 
 ```bash
-python file_duplicate_finder.py D:\Documents
+python run.py D:\Documents
 ```
 
 如需扫描后不自动查找重复文件，可以使用--no-find-duplicates选项：
 
 ```bash
-python file_duplicate_finder.py <目录路径> --no-find-duplicates
+python run.py <目录路径> --no-find-duplicates
 ```
 
 ### 查找重复文件
@@ -68,7 +94,7 @@ python file_duplicate_finder.py <目录路径> --no-find-duplicates
 直接查找数据中的重复文件（需先进行扫描创建数据库）：
 
 ```bash
-python file_duplicate_finder.py <目录路径> --find-duplicates
+python run.py <目录路径> --find-duplicates
 ```
 
 ### 比较目录变更
@@ -76,7 +102,7 @@ python file_duplicate_finder.py <目录路径> --find-duplicates
 比较当前目录与数据库中的记录，检测文件变化：
 
 ```bash
-python file_duplicate_finder.py <目录路径> --compare
+python run.py <目录路径> --compare
 ```
 
 比较完成后，程序会询问是否根据实际文件更新数据库。
@@ -90,7 +116,7 @@ python file_duplicate_finder.py <目录路径> --compare
 - 因此，此操作可能不能完全反映目录的实际情况，但可以快速找到目录中新增、删除或修改的文件，请谨慎使用。
 
 ```bash
-python file_duplicate_finder.py <目录路径> --update
+python run.py <目录路径> --update
 ```
 
 ### 查看文件内容
@@ -104,7 +130,7 @@ python file_duplicate_finder.py <目录路径> --update
 - 程序接口提供修改文件内容的功能，但从安全角度考虑，不建议直接修改文件内容。
 
 ```bash
-python file_duplicate_finder.py <任意目录路径> --read-file <文件路径>
+python run.py <任意目录路径> --read-file <文件路径>
 ```
 
 ### 导出重复文件到JSON
@@ -112,13 +138,13 @@ python file_duplicate_finder.py <任意目录路径> --read-file <文件路径>
 将找到的重复文件信息导出为JSON格式文件：
 
 ```bash
-python file_duplicate_finder.py <目录路径> --export-duplicates <输出JSON文件路径>
+python run.py <目录路径> --export-duplicates <输出JSON文件路径>
 ```
 
 例如：
 
 ```bash
-python file_duplicate_finder.py D:\Documents --export-duplicates duplicates.json
+python run.py D:\Documents --export-duplicates duplicates.json
 ```
 
 ### 指定数据库文件
@@ -126,15 +152,17 @@ python file_duplicate_finder.py D:\Documents --export-duplicates duplicates.json
 使用`--db`参数指定自定义数据库文件路径：
 
 ```bash
-python file_duplicate_finder.py <目录路径> --db my_custom_data.db
+python run.py <目录路径> --db my_custom_data.db
 ```
+
 ### 打开重复文件处理GUI界面
 
 打开独立的GUI界面，方便管理重复文件：
 
 ```bash
-python .\gui_dupl\handler_dupl.py
+python run.py --gui
 ```
+
 ## 命令行参数
 
 以下是所有可用的命令行参数及其说明：
@@ -152,6 +180,36 @@ python .\gui_dupl\handler_dupl.py
 | `--force-recalculate` | 标志 | 强制重新计算所有文件的哈希值 |
 | `--export-duplicates <JSON文件路径>` | 可选 | 将重复文件信息导出为JSON格式文件 |
 | `--no-find-duplicates` | 标志 | 扫描后不自动查找重复文件（默认会自动查找） |
+| `--gui` | 标志 | 以图形界面模式运行程序 |
+
+## 文件处理器配置
+
+程序使用JSON配置文件`reg_handlers.json`来注册和管理不同类型文件的处理器。配置文件定义了每个处理器的模块路径、类名、支持的文件扩展名等信息。
+
+```json
+{
+    "regs": [
+        {
+            "name": "Word, Wps Document Handler",
+            "desc": "This handler is used to handle doc、docx、wps documents.",
+            "module": "filedup.rw_docx_wps",
+            "class": "RWDocxWps",
+            "ext": ["doc", "docx", "wps"],
+            "enabled": true
+        },
+        {
+            "name": "Image Handler",
+            "desc": "This handler is used to handle image files.",
+            "module": "filedup.rw_img",
+            "class": "RWImg",
+            "ext": ["bmp", "jpg", "jpeg", "png", "gif", "tiff", "webp", "ppm", "pgm", "pbm", "pnm", "svg"],
+            "enabled": true
+        }
+    ]
+}
+```
+
+处理器模块需要实现`RWInterface`接口，提供文件读写功能。
 
 ## 工作原理
 
@@ -161,7 +219,35 @@ python .\gui_dupl\handler_dupl.py
 4. **重复检测**：通过分析找出具有相同哈希值的文件组
 5. **变更比较**：对比当前目录文件与数据库记录，识别新增、删除和修改的文件
 6. **数据更新**：根据实际文件更新数据库
-7. **文件内容查看**：提供接口查看指定文件的内容（默认显示前4KB）
+7. **文件内容查看**：提供接口查看指定文件的内容（默认显示前4KB），支持通过注册的文件处理器处理特定类型文件
+
+## 项目结构
+
+```
+d:\MyProg\python\filedup/
+├── LICENSE
+├── README.md
+├── filedup/              # 核心功能模块
+│   ├── __init__.py
+│   ├── file_duplicate_finder.py  # 主功能实现
+│   ├── find_python_dlls.py
+│   ├── global_vars.py    # 全局变量定义
+│   ├── prograss.py       # 进度条实现
+│   ├── rw_docx_wps.py    # Word/WPS文档处理器
+│   ├── rw_img.py         # 图像文件处理器
+│   ├── rw_interface.py   # 文件处理器接口
+│   └── rw_reg_handlers.py # 处理器注册管理
+├── gui_dupl/             # GUI界面模块
+│   ├── __init__.py
+│   └── handle_dupl.py    # GUI界面实现
+├── reg_handlers.json     # 文件处理器配置
+├── requirements.txt      # 项目依赖列表
+├── run.py                # 程序主入口
+├── test_finder.py        # 测试脚本
+├── test_hash_algorithms.py # 哈希算法测试
+├── verify_encoding_fix.py # 编码修复验证
+└── word_test.docx        # 测试文档
+```
 
 ## 注意事项
 
@@ -169,6 +255,7 @@ python .\gui_dupl\handler_dupl.py
 - 程序需要读取文件内容计算哈希值，因此需要足够的文件读取权限
 - 对于无法访问的文件，程序会跳过并记录错误信息
 - 二进制文件的内容查看功能会以十六进制格式显示前4KB内容
+- Word/WPS文档处理功能依赖于pywin32库，仅在Windows平台可用
 
 ## 示例输出
 
