@@ -16,7 +16,7 @@ from filedup.prograss import ProgressBar
 # from itertools import batched
 # 注册的处理器文件名
 from filedup.global_vars import FILE_FEATURES_DB_FILENAME, FILE_DUMP_FILENAME, log_print
-from filedup.rw_reg_handlers import RWRegHandlers
+from filedup.rw_reg_handlers import RWRegHandlers, get_RWRegHandlers
 
 class FileDuplicateFinder:
     def __init__(self, db_path=FILE_FEATURES_DB_FILENAME, max_threads=4, hash_algorithm='md5', force_recalculate=False):
@@ -28,7 +28,7 @@ class FileDuplicateFinder:
         self.force_recalculate = force_recalculate
         # self.register_handlers=[] #[{"ext":None,"handler":rw_interface.RWInterface}]
         self.progress_bar=None
-        self.rw_reg_handlers = RWRegHandlers() # 注册文件处理器
+        self.rw_reg_handlers:RWRegHandlers = get_RWRegHandlers() # 注册文件处理器
         self.initialize_database()
         
         

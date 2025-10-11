@@ -26,19 +26,23 @@ class RWRegHandlers:
         # 移除错误的__path__设置
         handler_class:filedup.rw_interface.RWInterface = getattr(handler_module, handler_json["class"])
         reged=handler_class.register_extension()
+        
+        existing_handler = next((x for x in self.register_handlers if x["ext"] == reged["ext"]), None)
+        if existing_handler:
+            log_print(f"文件处理器 {reged['ext']} 已存在，不重复注册")
+            return        
         self.register_handlers.append({"ext":reged["ext"],"handler":reged["handler"]})
         print(f"注册文件处理器: {handler_json['ext']}")
 
     def unregister_file_handler(self):
         """注销文件处理函数"""
         if not self.register_handlers:
-            log_print("未注册文件处理器")
             return
         for h in self.register_handlers:
             print(f"注销文件处理器: {h['ext']}")
             h["handler"].unregister_extension()
             # self.register_handlers.remove(h)
-            
+        self.register_handlers.clear()
         
     def default_file_handler(self, file_path, max_lines=100):
         """读取文件内容"""       
@@ -83,3 +87,9 @@ class RWRegHandlers:
             else:
                 log_print(f"未找到模式为'{mode}'的处理器: {file_path}")
         return file_type, handled_result
+
+gRWReghandlers=RWRegHandlers()
+
+def get_RWRegHandlers():
+    """获取已注册的文件处理器"""
+    return gRWReghandlers

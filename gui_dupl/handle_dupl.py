@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QFont, QColor, QIcon, QImage, QPixmap
 from filedup.file_duplicate_finder import FileDuplicateFinder
-from filedup.rw_reg_handlers import RWRegHandlers
+from filedup.rw_reg_handlers import RWRegHandlers, get_RWRegHandlers
 from filedup.global_vars import FILE_FEATURES_DB_FILENAME
 import base64
 
@@ -35,7 +35,7 @@ class DuplicateFileHandler(QMainWindow):
         self.init_ui()
         self.duplicate_groups = []
         self.selected_files = set()  # 存储选中的文件路径
-        self.rw_reg_handlers = RWRegHandlers()
+        self.rw_reg_handlers:RWRegHandlers = get_RWRegHandlers() # 注册文件处理器
         self.dest_dir = None
         # 添加FileDuplicateFinder实例引用
         self.file_finder = None
@@ -59,12 +59,13 @@ class DuplicateFileHandler(QMainWindow):
         
         # 创建文件树
         self.file_tree = QTreeWidget()
-        self.file_tree.setHeaderLabels(['文件名', '大小', '修改时间', '创建时间', '所有者'])
+        self.file_tree.setHeaderLabels(['文件名', '大小', '修改时间', '创建时间', '所有者', '路径'])
         self.file_tree.setColumnWidth(0, 400)  # 设置第一列宽度
         self.file_tree.setColumnWidth(1, 80)
         self.file_tree.setColumnWidth(2, 150)
         self.file_tree.setColumnWidth(3, 150)
         self.file_tree.setColumnWidth(4, 100)
+        self.file_tree.setColumnWidth(5, 400)  # 设置第五列宽度
         self.file_tree.itemClicked.connect(self.on_file_clicked)
         # 设置右键菜单
         self.file_tree.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -224,9 +225,12 @@ class DuplicateFileHandler(QMainWindow):
             try:
                 self.dest_dir = os.path.dirname(json_path)
                 # 初始化FileDuplicateFinder实例
-                db_path = os.path.join(self.dest_dir, self.db_filename)
-                self.file_finder = FileDuplicateFinder(db_path=db_path)
-                
+                db_path =os.path.realpath(os.path.join(self.dest_dir, self.db_filename))    
+                if self.file_finder.db_path.lower() != db_path.lower(): 
+                    if self.file_finder:
+                        self.file_finder.close()              
+                    self.file_finder = FileDuplicateFinder(db_path=db_path)
+                    
                 with open(json_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.duplicate_groups = data.get('duplicate_groups', [])
@@ -259,7 +263,7 @@ class DuplicateFileHandler(QMainWindow):
                 created_time = self.format_time(file_info.get('created', ''))
                 owner = file_info.get('owner', '')
                 
-                file_item = QTreeWidgetItem([file_name, file_size, modified_time, created_time, owner])
+                file_item = QTreeWidgetItem([file_name, file_size, modified_time, created_time, owner, file_path])
                 file_item.setData(0, Qt.UserRole, file_path)  # 存储完整路径
                 file_item.setCheckState(0, Qt.Unchecked)  # 添加复选框
                 
@@ -445,7 +449,7 @@ class DuplicateFileHandler(QMainWindow):
                 if file_item.isHidden():
                     continue
                     
-                file_path = file_item.data(0, Qt.UserRole)
+                # file_path = file_item.data(0, Qt.UserRole)
                 
                 # 获取修改时间
                 modified_str = file_item.text(2)
@@ -481,7 +485,7 @@ class DuplicateFileHandler(QMainWindow):
                 if file_item.isHidden():
                     continue
                     
-                file_path = file_item.data(0, Qt.UserRole)
+                # file_path = file_item.data(0, Qt.UserRole)
                 
                 # 获取修改时间
                 modified_str = file_item.text(2)
@@ -695,8 +699,6 @@ class DuplicateFileHandler(QMainWindow):
                     if group_item.childCount() == 0:
                         self.file_tree.takeTopLevelItem(group_idx)
                     return
-
-
 
 def main(dir=None):
     """主函数"""
