@@ -179,10 +179,16 @@ class DuplicateFileHandler(QMainWindow):
         self.statusBar().showMessage('就绪')
 
     def set_dest_dir(self, dest_dir):
+        if not os.path.exists(dest_dir):
+            raise FileNotFoundError(f"目标目录不存在: {dest_dir}")
+        
         self.dest_dir = dest_dir
         # 设置了目标目录后，初始化FileDuplicateFinder实例
-        if dest_dir:
+        if self.dest_dir:            
             db_path = os.path.join(dest_dir, self.db_filename)
+            db_path=os.path.realpath(db_path)
+            if self.file_finder and self.file_finder.db_path.lower() == db_path.lower():
+                return
             self.file_finder = FileDuplicateFinder(db_path=db_path)
            
     def create_menus(self):
@@ -223,14 +229,9 @@ class DuplicateFileHandler(QMainWindow):
             
         if json_path:
             try:
-                self.dest_dir = os.path.dirname(json_path)
                 # 初始化FileDuplicateFinder实例
-                db_path =os.path.realpath(os.path.join(self.dest_dir, self.db_filename))    
-                if self.file_finder.db_path.lower() != db_path.lower(): 
-                    if self.file_finder:
-                        self.file_finder.close()              
-                    self.file_finder = FileDuplicateFinder(db_path=db_path)
-                    
+                self.set_dest_dir(os.path.dirname(json_path))
+                
                 with open(json_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.duplicate_groups = data.get('duplicate_groups', [])
