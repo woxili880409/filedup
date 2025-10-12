@@ -419,8 +419,41 @@ class DuplicateFileHandler(QMainWindow):
                 self.image_scroll_area.hide()
                 return
             elif file_type == 'video' and content:
-                self.content_view.setHtml(f"<video controls><source src='data:video/mp4;base64,{content}' type='video/mp4'></video>")
+                # 处理视频文件，现在content格式为FILE_SIZE:xxx
+                file_size = 0
+                if content.startswith('FILE_SIZE:'):
+                    file_size = int(content.split(':')[1])
+                
+                # 由于QTextEdit不支持视频播放，我们将提供一个按钮来使用系统默认播放器打开视频
+                # 首先，确保content_view有合适的最小高度
+                self.content_view.setMinimumHeight(150)
+                
+                # 设置提示信息和播放按钮
+                video_name = os.path.basename(file_path)
+                size_mb = file_size / (1024 * 1024)
+                
+                # 清除现有的按钮（如果有）
+                # 查找所有按钮并移除它们
+                for i in reversed(range(self.content_container_layout.count())):
+                    widget = self.content_container_layout.itemAt(i).widget()
+                    if widget and isinstance(widget, QPushButton) and widget.objectName() == 'open_video_button':
+                        self.content_container_layout.removeWidget(widget)
+                        widget.deleteLater()
+                
+                # 创建一个"使用外部播放器打开"按钮
+                self.open_video_button = QPushButton("使用外部播放器打开视频")
+                self.open_video_button.setObjectName('open_video_button')
+                self.open_video_button.clicked.connect(lambda checked=False, path=file_path: self.open_video_with_external_player(path))
+                
+                # 显示视频信息
+                self.content_view.setText(f"视频文件信息：\n文件名：{video_name}\n大小：{size_mb:.2f} MB\n\n请点击下方按钮使用系统默认播放器打开视频。")
+                
+                # 将按钮添加到内容容器布局
+                self.content_container_layout.addWidget(self.content_view)
+                self.content_container_layout.addWidget(self.open_video_button)
+                
                 self.content_view.show()
+                self.open_video_button.show()
                 self.image_scroll_area.hide()
                 return
             else:
@@ -431,6 +464,17 @@ class DuplicateFileHandler(QMainWindow):
             self.content_view.setText(f"读取文件失败: {str(e)}")
             self.content_view.show()
             self.image_scroll_area.hide()
+    
+    def open_video_with_external_player(self, file_path):
+        """
+        使用系统默认播放器打开视频文件
+        """
+        try:
+            # 在Windows中使用os.startfile打开文件，会调用系统默认的应用程序
+            os.startfile(file_path)
+        except Exception as e:
+            # 如果出错，显示错误信息
+            QMessageBox.warning(self, "打开文件失败", f"无法使用系统默认播放器打开视频文件：\n{str(e)}")
     
     def select_oldest_files(self):
         """选中每组中最早的文件，只选择过滤后可见的文件"""
@@ -448,23 +492,6 @@ class DuplicateFileHandler(QMainWindow):
             for file_idx in range(group_item.childCount()):
                 file_item = group_item.child(file_idx)
                 # 只处理可见的文件项
-                if file_item.isHidden():
-                    continue
-                    
-                # file_path = file_item.data(0, Qt.UserRole)
-                
-                # 获取修改时间
-                modified_str = file_item.text(2)
-                try:
-                    modified_time = datetime.strptime(modified_str, '%Y-%m-%d %H:%M:%S')
-                    
-                    if oldest_time is None or modified_time < oldest_time:
-                        oldest_time = modified_time
-                        oldest_item = file_item
-                except:
-                    continue
-            
-            if oldest_item:
                 oldest_item.setCheckState(0, Qt.Checked)
                 self.selected_files.add(oldest_item.data(0, Qt.UserRole))
     
@@ -706,11 +733,19 @@ def add_args(parser: argparse.ArgumentParser):
     """添加命令行参数"""
     return
         
-def main(args: argparse.Namespace):
-    """主函数"""
+def main(args=None):
+    """
+    主函数
+    """
+    # 如果没有提供args参数，则创建一个默认的argparse.Namespace对象
+    if args is None:
+        parser = argparse.ArgumentParser(description='重复文件处理工具')
+        parser.add_argument('--directory', help='设置目标目录')
+        args = parser.parse_args()
+    
     app = QApplication(sys.argv)
     window = DuplicateFileHandler()
-    if args.directory:
+    if hasattr(args, 'directory') and args.directory:
         window.set_dest_dir(args.directory)
     window.show()
     sys.exit(app.exec_())

@@ -15,6 +15,15 @@
             "class": "RWImg",
             "ext": ["bmp", "jpg", "jpeg", "png", "gif", "tiff", "webp", "ppm", "pgm", "pbm", "pnm", "svg"],
             "enabled": true
+        },
+        {
+            "name": "Video Handler",
+            "desc": "This handler is used to handle video files.",
+            "module": "filedup.rw_video",
+            "class": "RWVideo",
+            "ext": ["mp4", "avi", "mov", "mkv", "flv", "wmv", "webm", "mpg", "mpeg", "3gp", "m4v", "vob", "ogv"],
+            "enabled": true
         }
+
     ]
 }
