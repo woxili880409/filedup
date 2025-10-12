@@ -29,6 +29,8 @@ Provide "Invert Selection" and "Clear Selection" buttons for quick file selectio
 Support right-click context menu operations for quick access to file explorer and command line from the file's directory.
 11. **可扩展的文件处理器**：采用模块化设计，支持通过JSON配置文件注册不同类型文件的处理器，当前支持Word/WPS文档和图像文件处理
 Modular design with JSON-configurable file handlers, currently supporting Word/WPS documents and image files.
+12. **程序打包支持**：提供完整的打包脚本，可将程序打包为独立可执行文件，无需Python环境即可运行
+Provide complete packaging scripts to package the program into a standalone executable that can run without a Python environment.
 
 ## 系统要求
 
@@ -51,42 +53,38 @@ pip install -r requirements.txt
 
 ### 主入口点
 
-本项目提供了统一的主入口点`run.py`，可以通过命令行参数选择运行命令行模式或图形界面模式：
+本项目提供了统一的主入口点`run.py`，使用子命令结构：
 
 ```bash
-# 以命令行模式运行
-python run.py [参数]
+# 使用dupl子命令（命令行模式）查找重复文件
+python run.py dupl <目录路径> [参数]
 
-# 以图形界面模式运行
-python run.py --gui
+# 使用gui子命令启动图形界面
+python run.py gui <目录路径>
 ```
 
 ### 基本扫描
-在默认情况下，程序会自动查找重复文件并存储到数据库中。
-
-其中数据库更新的策略是：
-1. 如果文件哈希值不存在，则插入新记录
-2. 如果文件哈希值已存在，且文件路径、大小、创建时间、修改时间、访问时间、所有者等6个属性都没有变化，则跳过更新
-3. 如果文件哈希值已存且上述6个属性有变更，则检查文件大小或修改时间是否有变化，若有变化，则更新该记录
-
-### 扫描目录并创建特征数据
-
-扫描指定目录并创建文件特征数据，默认情况下会自动查找重复文件：
+使用dupl子命令扫描指定目录并查找重复文件：
 
 ```bash
-python run.py <目录路径>
+python run.py dupl <目录路径>
 ```
 
 例如：
 
 ```bash
-python run.py D:\Documents
+python run.py dupl D:\Documents
 ```
+
+数据库更新的策略是：
+1. 如果文件哈希值不存在，则插入新记录
+2. 如果文件哈希值已存在，且文件路径、大小、创建时间、修改时间、访问时间、所有者等6个属性都没有变化，则跳过更新
+3. 如果文件哈希值已存且上述6个属性有变更，则检查文件大小或修改时间是否有变化，若有变化，则更新该记录
 
 如需扫描后不自动查找重复文件，可以使用--no-find-duplicates选项：
 
 ```bash
-python run.py <目录路径> --no-find-duplicates
+python run.py dupl <目录路径> --no-find-duplicates
 ```
 
 ### 查找重复文件
@@ -94,7 +92,7 @@ python run.py <目录路径> --no-find-duplicates
 直接查找数据中的重复文件（需先进行扫描创建数据库）：
 
 ```bash
-python run.py <目录路径> --find-duplicates
+python run.py dupl <目录路径> --find-duplicates
 ```
 
 ### 比较目录变更
@@ -102,7 +100,7 @@ python run.py <目录路径> --find-duplicates
 比较当前目录与数据库中的记录，检测文件变化：
 
 ```bash
-python run.py <目录路径> --compare
+python run.py dupl <目录路径> --compare
 ```
 
 比较完成后，程序会询问是否根据实际文件更新数据库。
@@ -110,13 +108,12 @@ python run.py <目录路径> --compare
 ### 更新数据
 
 直接更新数据库以匹配当前目录状态,注意，此操作重新计算所有文件的哈希值，而只是对比文件大小和修改时间：
-
 - 如果文件大小和修改时间没有变化，则跳过更新
 - 如果文件大小或修改时间有变化，则重新计算哈希值并则更新数据库
 - 因此，此操作可能不能完全反映目录的实际情况，但可以快速找到目录中新增、删除或修改的文件，请谨慎使用。
 
 ```bash
-python run.py <目录路径> --update
+python run.py dupl <目录路径> --update
 ```
 
 ### 查看文件内容
@@ -130,7 +127,7 @@ python run.py <目录路径> --update
 - 程序接口提供修改文件内容的功能，但从安全角度考虑，不建议直接修改文件内容。
 
 ```bash
-python run.py <任意目录路径> --read-file <文件路径>
+python run.py dupl <任意目录路径> --read-file <文件路径>
 ```
 
 ### 导出重复文件到JSON
@@ -138,13 +135,13 @@ python run.py <任意目录路径> --read-file <文件路径>
 将找到的重复文件信息导出为JSON格式文件：
 
 ```bash
-python run.py <目录路径> --export-duplicates <输出JSON文件路径>
+python run.py dupl <目录路径> --export-duplicates <输出JSON文件路径>
 ```
 
 例如：
 
 ```bash
-python run.py D:\Documents --export-duplicates duplicates.json
+python run.py dupl D:\Documents --export-duplicates duplicates.json
 ```
 
 ### 指定数据库文件
@@ -152,7 +149,7 @@ python run.py D:\Documents --export-duplicates duplicates.json
 使用`--db`参数指定自定义数据库文件路径：
 
 ```bash
-python run.py <目录路径> --db my_custom_data.db
+python run.py dupl <目录路径> --db my_custom_data.db
 ```
 
 ### 打开重复文件处理GUI界面
@@ -160,16 +157,26 @@ python run.py <目录路径> --db my_custom_data.db
 打开独立的GUI界面，方便管理重复文件：
 
 ```bash
-python run.py --gui
+python run.py gui <目录路径>
 ```
 
 ## 命令行参数
 
 以下是所有可用的命令行参数及其说明：
 
+### 基本结构
+```bash
+python run.py <子命令> <目录路径> [参数]
+```
+
+其中，子命令可以是：
+- `dupl`: 命令行模式查找重复文件
+- `gui`: 图形界面模式
+
+### dupl子命令参数
+
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| `<目录路径>` | 必填 | 要扫描的目录路径 |
 | `--db <路径>` | 可选 | 数据库文件路径（默认：file_features.db） |
 | `--find-duplicates` | 标志 | 仅查找重复文件（需先进行扫描创建数据库） |
 | `--compare` | 标志 | 比较目录与数据库，检测文件变更 |
@@ -180,7 +187,12 @@ python run.py --gui
 | `--force-recalculate` | 标志 | 强制重新计算所有文件的哈希值 |
 | `--export-duplicates <JSON文件路径>` | 可选 | 将重复文件信息导出为JSON格式文件 |
 | `--no-find-duplicates` | 标志 | 扫描后不自动查找重复文件（默认会自动查找） |
-| `--gui` | 标志 | 以图形界面模式运行程序 |
+
+### gui子命令参数
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| 目前gui子命令不需要额外参数 |
 
 ## 文件处理器配置
 
@@ -359,6 +371,34 @@ d:\MyProg\python\filedup/
   "total_groups": 2
 }
 ```
+
+## 程序打包与分发
+
+本项目支持通过PyInstaller打包为可执行文件，方便在没有Python环境的计算机上运行。
+
+### 打包方法
+
+项目中已包含`build_script.py`脚本，用于打包程序：
+
+```bash
+python build_script.py
+```
+
+打包过程将自动完成所有模块和依赖的收集，生成文件夹形式的分发版本。
+
+### 运行打包后的程序
+
+打包完成后，程序文件将位于`dist/run`目录中：
+
+- 运行程序：双击`dist/run/run.exe`文件
+- 注意：请不要单独移动或复制`run.exe`文件，需要确保整个`dist/run`文件夹的完整性
+
+### 分享程序
+
+如需与他人分享程序，请：
+1. 复制整个`dist/run`文件夹
+2. 将整个文件夹发送给他人
+3. 接收者只需双击文件夹中的`run.exe`即可运行程序，无需安装Python或其他依赖
 
 ## 许可证
 
