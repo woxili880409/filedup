@@ -1,8 +1,10 @@
 import sys
 from filedup.file_duplicate_finder import main as filedup_main,add_args as filedup_add_args
-from filedup.global_vars import log_print,LOG_LEVEL_ERROR
+from filedup.global_vars import log_print,LOG_LEVEL_ERROR,set_log_level,LOG_LEVEL_WARN
 from gui_dupl.handle_dupl import main as gui_main,add_args as gui_add_args
 import argparse
+
+set_log_level(LOG_LEVEL_WARN)
 
 def main():
     """主函数"""

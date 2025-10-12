@@ -11,7 +11,7 @@ if __name__ == '__main__':
         'run.py',
         '--name', 'run',
         '--onedir',  # 使用文件夹模式，这样会正确包含所有模块文件
-        '--noconsole',
+        # 移除--noconsole选项，以便dupl子命令可以正常显示输出
         '--clean',
         '--add-data', 'filedup;filedup',
         '--add-data', 'gui_dupl;gui_dupl',
