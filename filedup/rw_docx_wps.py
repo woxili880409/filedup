@@ -107,6 +107,16 @@ class RWDocxWps(rw_interface.RWInterface):
             return None
 
         file_object.Content.Text = data
+        return True
+
+    def save(self, file_object, data:any = None):
+        """
+        保存 docx 和 wps 文件的内容。
+        return None: 文件对象不存在或无法保存。
+        return True: 文件内容保存成功。
+        """
+        if file_object is None:
+            return None
         file_object.Save()
         return True
 
@@ -119,14 +129,13 @@ class RWDocxWps(rw_interface.RWInterface):
         return False: 处理失败。
         return True: 处理成功。
         """
-        if not self.can_handle(filename):
-            return None, None
-
+        
         if 'w' in mode:
             file_object = self.open(filename, mode)
             if file_object is None:
                 return None, None
             self.write(file_object, data)
+            self.save(file_object)
             self.close(file_object)
             return ('text',data)
         elif 'r' in mode:

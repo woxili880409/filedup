@@ -62,6 +62,14 @@ class RWInterface:
         """
         pass
     
+    def save(self, file_object, data:any = None):
+        """
+        保存指定文件对象的内容。
+        return None: 文件对象不存在或无法保存。
+        return True: 文件对象保存成功。
+        """
+        pass
+    
     def handle_file(self, filename: str, mode: str, data: any = None):
         f"""
         处理指定文件。
