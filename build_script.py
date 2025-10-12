@@ -9,7 +9,7 @@ if __name__ == '__main__':
     # 定义打包参数
     args = [
         'run.py',
-        '--name', 'run',
+        '--name', 'filedup',
         '--onedir',  # 使用文件夹模式，这样会正确包含所有模块文件
         # 移除--noconsole选项，以便dupl子命令可以正常显示输出
         '--clean',
@@ -36,4 +36,4 @@ if __name__ == '__main__':
     
     print("\n打包完成！请检查dist目录")
     print("注意：由于使用了--onedir选项，程序将被打包为文件夹形式")
-    print("请运行 dist/run/run.exe 而不是 dist/run.exe")
+    print("请运行 dist/filedup/filedup.exe 而不是 dist/filedup.exe")
