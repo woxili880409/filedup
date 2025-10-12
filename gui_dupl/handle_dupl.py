@@ -18,6 +18,7 @@ from filedup.file_duplicate_finder import FileDuplicateFinder
 from filedup.rw_reg_handlers import RWRegHandlers, get_RWRegHandlers
 from filedup.global_vars import FILE_FEATURES_DB_FILENAME
 import base64
+import argparse
 
 # 添加发送到回收站功能
 try:
@@ -701,12 +702,16 @@ class DuplicateFileHandler(QMainWindow):
                         self.file_tree.takeTopLevelItem(group_idx)
                     return
 
-def main(dir=None):
+def add_args(parser: argparse.ArgumentParser):
+    """添加命令行参数"""
+    return
+        
+def main(args: argparse.Namespace):
     """主函数"""
     app = QApplication(sys.argv)
     window = DuplicateFileHandler()
-    if dir:
-        window.set_dest_dir(dir)
+    if args.directory:
+        window.set_dest_dir(args.directory)
     window.show()
     sys.exit(app.exec_())
 

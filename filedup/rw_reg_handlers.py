@@ -1,7 +1,8 @@
 import os
 import json
 import filedup.rw_interface
-from filedup.global_vars import REGISTERED_HANDLERS_FILENAME, log_print, FILE_FEATURES_DB_FILENAME
+from filedup.global_vars import REGISTERED_HANDLERS_FILENAME, log_print, \
+    FILE_FEATURES_DB_FILENAME,LOG_LEVEL_INFO,LOG_LEVEL_WARN,LOG_LEVEL_ERROR
 
 class RWRegHandlers:
     """注册文件处理器"""
@@ -19,7 +20,7 @@ class RWRegHandlers:
         """注册文件处理函数"""
         #根据json文件中的key:value，导入key模块，并注册文件处理器
         if not handler_json["enabled"]:
-            # print(f"文件处理器 {handler_json['ext']} 已禁用，不注册")
+            log_print(f"文件处理器 {handler_json['ext']} 已禁用，不注册",log_level=LOG_LEVEL_WARN)
             return
         # 正确导入子模块，使用fromlist参数确保导入的是子模块而不是包
         handler_module = __import__(handler_json["module"], fromlist=[''])
@@ -29,17 +30,17 @@ class RWRegHandlers:
         
         existing_handler = next((x for x in self.register_handlers if x["ext"] == reged["ext"]), None)
         if existing_handler:
-            log_print(f"文件处理器 {reged['ext']} 已存在，不重复注册")
+            log_print(f"文件处理器 {reged['ext']} 已存在，不重复注册",log_level=LOG_LEVEL_WARN)
             return        
         self.register_handlers.append({"ext":reged["ext"],"handler":reged["handler"]})
-        print(f"注册文件处理器: {handler_json['ext']}")
+        log_print(f"注册文件处理器: {handler_json['ext']}",log_level=LOG_LEVEL_INFO)
 
     def unregister_file_handler(self):
         """注销文件处理函数"""
         if not self.register_handlers:
             return
         for h in self.register_handlers:
-            print(f"注销文件处理器: {h['ext']}")
+            log_print(f"注销文件处理器: {h['ext']}",log_level=LOG_LEVEL_INFO)
             h["handler"].unregister_extension()
             # self.register_handlers.remove(h)
         self.register_handlers.clear()
@@ -62,16 +63,16 @@ class RWRegHandlers:
                     content = file.read(4096)  # 只读取前4KB
                     return 'text',f"二进制文件内容 (前4KB): {content.hex()[:500]}..."
             except Exception as e:
-                print(f"无法读取文件 {file_path}: {e}")
+                log_print(f"无法读取文件 {file_path}: {e}",log_level=LOG_LEVEL_ERROR)
                 return None, None
         except Exception as e:
-            print(f"无法读取文件 {file_path}: {e}")
+            log_print(f"无法读取文件 {file_path}: {e}",log_level=LOG_LEVEL_ERROR)
             return None, None
                     
     def handle_file(self, file_path,mode='r',data=None):
         """处理文件"""
         if not os.path.isfile(file_path):
-            print(f"文件不存在: {file_path}")
+            log_print(f"文件不存在: {file_path}",log_level=LOG_LEVEL_WARN)
             return None, None
 
         file_type,handled_result = None, None
@@ -82,14 +83,18 @@ class RWRegHandlers:
                    break
         else:    
             if mode == 'r':
-                log_print(f"使用默认文件处理器读取文件内容: {file_path}")
+                log_print(f"使用默认文件处理器读取文件内容: {file_path}",log_level=LOG_LEVEL_INFO)
                 file_type, handled_result =self.default_file_handler(file_path)
             else:
-                log_print(f"未找到模式为'{mode}'的处理器: {file_path}")
+                log_print(f"未找到模式为'{mode}'的处理器: {file_path}",log_level=LOG_LEVEL_WARN)
         return file_type, handled_result
 
-gRWReghandlers=RWRegHandlers()
+gRWReghandlers=None
 
 def get_RWRegHandlers():
+    global gRWReghandlers
     """获取已注册的文件处理器"""
+    if not gRWReghandlers:
+        gRWReghandlers=RWRegHandlers()
+    gRWReghandlers.register_file_handler()
     return gRWReghandlers

@@ -1,49 +1,35 @@
 import sys
-from filedup.file_duplicate_finder import main as filedup_main
-from filedup.global_vars import log_print
-from gui_dupl.handle_dupl import main as gui_main
+from filedup.file_duplicate_finder import main as filedup_main,add_args as filedup_add_args
+from filedup.global_vars import log_print,LOG_LEVEL_ERROR
+from gui_dupl.handle_dupl import main as gui_main,add_args as gui_add_args
 import argparse
 
 def main():
     """主函数"""
     # 创建一个只解析--gui参数的解析器
     parser = argparse.ArgumentParser(description='文件重复查找工具', add_help=False)
-    parser.add_argument('dir', nargs='?', help='要查找重复文件的目录')
-    parser.add_argument('-g', '--gui', action='store_true', help='使用图形界面')
+    subparsers = parser.add_subparsers(dest='command')
+    parser_dupl = subparsers.add_parser('dupl', help='查找重复文件')
+    filedup_add_args(parser_dupl)
+    parser_gui = subparsers.add_parser('gui', help='使用图形界面')
+    gui_add_args(parser_gui)
+    parser.add_argument('directory', type=str, help='要查找重复文件的目录')
     
-    # 使用parse_known_args解析参数，这样可以只解析--gui参数，保留其他参数
-    args, remaining_args = parser.parse_known_args()
-    
-    if args.gui:
-        # 图形界面模式，只需要目录参数
-        if args.dir:
-            gui_main(args.dir)
-        else:
-            log_print("请指定目录或使用图形界面")
-            parser.print_help()
-            sys.exit(1)
-    elif not args.dir:
-        log_print("请指定目录或使用图形界面")
+    try:   
+        args = parser.parse_args()
+        print(args)
+    except argparse.ArgumentError as e:
+        log_print(f"参数错误: {e}",log_level=LOG_LEVEL_ERROR)
         parser.print_help()
         sys.exit(1)
+    
+    if args.command == 'dupl':
+        filedup_main(args)
+    elif args.command == 'gui':
+        gui_main(args)
     else:
-        # 命令行模式，将所有剩余参数传递给file_duplicate_finder的main函数
-        # 由于file_duplicate_finder的main函数会重新解析命令行参数
-        # 我们需要修改sys.argv，然后调用其main函数
-        original_argv = sys.argv.copy()
-        try:
-            # 设置sys.argv为[script_name] + dir + remaining_args
-            sys.argv = [original_argv[0]] + [args.dir] + remaining_args
-            
-            # 调用file_duplicate_finder的main函数，不传递dir参数
-            # 这样它会自己从sys.argv中解析所有参数
-            filedup_main()
-        except SystemExit:
-            # 捕获sys.exit()调用，以避免程序过早退出
-            pass
-        finally:
-            # 恢复原始的sys.argv
-            sys.argv = original_argv
-
+        log_print("请指定命令（dupl或gui）")
+        parser.print_help()
+        sys.exit(1)
 if __name__ == '__main__':
     main()
