@@ -15,7 +15,8 @@ from tkinter import NO
 from filedup.prograss import ProgressBar
 # from itertools import batched
 # 注册的处理器文件名
-from filedup.global_vars import FILE_FEATURES_DB_FILENAME, FILE_DUMP_FILENAME, log_print
+from filedup.global_vars import FILE_FEATURES_DB_FILENAME, FILE_DUMP_FILENAME, \
+    log_print,LOG_LEVEL_ERROR,LOG_LEVEL_WARN,LOG_LEVEL_INFO,LOG_LEVEL_DEBUG
 from filedup.rw_reg_handlers import RWRegHandlers, get_RWRegHandlers
 
 class FileDuplicateFinder:
@@ -48,7 +49,7 @@ class FileDuplicateFinder:
                     'owner': owner
                 }
         except sqlite3.Error as e:
-            print(f"获取已有文件信息时出错: {e}")
+            log_print(f"获取已有文件信息时出错: {e}",LOG_LEVEL_ERROR)
         return file_info
         
     def initialize_database(self):
@@ -79,7 +80,7 @@ class FileDuplicateFinder:
             ''')
             self.conn.commit()
         except sqlite3.Error as e:
-            print(f"数据库初始化错误: {e}")
+            log_print(f"数据库初始化错误: {e}",LOG_LEVEL_ERROR)
     
     def calculate_file_hash(self, file_path, block_size=1048576, hash_algorithm='md5'):
         """计算文件的哈希值
@@ -124,10 +125,10 @@ class FileDuplicateFinder:
             return f"{hash_algorithm}:{hasher.hexdigest()}"
             
         except (PermissionError, FileNotFoundError) as e:
-            print(f"无法计算文件哈希 {file_path}: {e}")
+            log_print(f"无法计算文件哈希 {file_path}: {e}",LOG_LEVEL_ERROR)
             return None
         except Exception as e:
-            print(f"计算哈希时发生未知错误 {file_path}: {e}")
+            log_print(f"计算哈希时发生未知错误 {file_path}: {e}",LOG_LEVEL_ERROR)
             return None
             
     def _worker_thread(self, file_queue, result_queue, existing_file_info):
@@ -165,14 +166,14 @@ class FileDuplicateFinder:
                            
                             # 所有属性都未变更，使用数据库中的哈希值
                             file_hash = existing_info['hash']
-                            log_print(f"跳过哈希计算和数据库更新 {file_path} (所有属性未变更)")
+                            log_print(f"跳过哈希计算和数据库更新 {file_path} (所有属性未变更)",LOG_LEVEL_INFO)
                             need_recalculate = False
                             needs_update = False  # 不需要更新数据库
                         else:
                             # 属性有变更，但大小或修改时间未变，可能只需要更新其他属性
                             if existing_info['size'] == file_size and existing_info['modified_time'] == modified_time:
                                 file_hash = existing_info['hash']
-                                log_print(f"跳过哈希计算 {file_path} (大小和修改时间未变更)")
+                                log_print(f"跳过哈希计算 {file_path} (大小和修改时间未变更)",LOG_LEVEL_INFO)
                                 need_recalculate = False
                             else:
                                 need_recalculate = True
@@ -214,13 +215,13 @@ class FileDuplicateFinder:
                             }
                             result_queue.put(attributes)
                 except Exception as e:
-                    print(f"处理文件时出错 {file_path}: {e}")
+                    log_print(f"处理文件时出错 {file_path}: {e}",LOG_LEVEL_ERROR)
                 finally:
                     file_queue.task_done()
             except queue.Empty:
                 break
             except Exception as e:
-                print(f"工作线程错误: {e}")
+                log_print(f"工作线程错误: {e}",LOG_LEVEL_ERROR)
                 break
     
     def get_file_owner(self, file_path):
@@ -235,7 +236,7 @@ class FileDuplicateFinder:
                 stat_info = os.stat(file_path)
                 return pwd.getpwuid(stat_info.st_uid).pw_name
         except Exception as e:
-            print(f"无法获取文件所有者 {file_path}: {e}")
+            log_print(f"无法获取文件所有者 {file_path}: {e}",LOG_LEVEL_ERROR)
             return "unknown"
     
     def get_file_attributes(self, file_path,recalculate_hash=True):
@@ -267,7 +268,7 @@ class FileDuplicateFinder:
                 'last_checked': current_time
             }
         except Exception as e:
-            print(f"无法获取文件属性 {file_path}: {e}")
+            log_print(f"无法获取文件属性 {file_path}: {e}",LOG_LEVEL_ERROR)
             return None
     
     def save_file_attributes(self, attributes):
@@ -319,7 +320,7 @@ class FileDuplicateFinder:
             self.conn.commit()
             return True
         except sqlite3.Error as e:
-            print(f"保存文件属性错误: {e}")
+            log_print(f"保存文件属性错误: {e}",LOG_LEVEL_ERROR)
             self.conn.rollback()
             return False
             
@@ -383,14 +384,14 @@ class FileDuplicateFinder:
             self.conn.commit()
             return True
         except sqlite3.Error as e:
-            print(f"批量保存文件属性错误: {e}")
+            log_print(f"批量保存文件属性错误: {e}",LOG_LEVEL_ERROR)
             self.conn.rollback()
             return False
     
     def scan_directory(self, directory_path):
         """扫描目录及其子目录中的所有文件（多线程版本，支持批量处理）"""
         if not os.path.isdir(directory_path):
-            print(f"目录不存在: {directory_path}")
+            log_print(f"目录不存在: {directory_path}",LOG_LEVEL_ERROR)
             return 0
             
         # 收集所有文件路径
@@ -405,13 +406,13 @@ class FileDuplicateFinder:
         
         total_files = len(all_files)
         if total_files == 0:
-            print("未找到任何文件。")
+            log_print("未找到任何文件。",LOG_LEVEL_INFO)
             return 0
             
         # 在主线程中获取现有文件信息，避免在工作线程中访问数据库
         existing_file_info = {} if self.force_recalculate else self.get_existing_file_info()
         
-        print(f"找到 {total_files} 个文件，开始使用 {self.max_threads} 个线程并行处理...")
+        log_print(f"找到 {total_files} 个文件，开始使用 {self.max_threads} 个线程并行处理...",LOG_LEVEL_INFO)
         
         # 创建队列
         file_queue = queue.Queue()
@@ -445,7 +446,7 @@ class FileDuplicateFinder:
         attributes_batch = []
         processed_count = 0
         
-        print("开始批量保存文件属性...")
+        log_print("开始批量保存文件属性...",LOG_LEVEL_INFO)
         while not result_queue.empty():
             attributes = result_queue.get()
             if attributes:
@@ -457,14 +458,14 @@ class FileDuplicateFinder:
                     self.batch_save_file_attributes(attributes_batch)
                     attributes_batch = []
                     # 显示进度
-                    print(f"已保存 {processed_count}/{total_files} 个文件的属性")
+                    log_print(f"已保存 {processed_count}/{total_files} 个文件的属性",LOG_LEVEL_INFO)
         
         # 保存剩余的文件属性
         if attributes_batch:
             self.batch_save_file_attributes(attributes_batch)
-            print(f"已保存 {processed_count}/{total_files} 个文件的属性")
+            log_print(f"已保存 {processed_count}/{total_files} 个文件的属性",LOG_LEVEL_INFO)
         
-        print(f"处理完成，共保存 {processed_count} 个文件的属性。")
+        log_print(f"处理完成，共保存 {processed_count} 个文件的属性。",LOG_LEVEL_INFO)
         return processed_count
     
     def find_duplicate_files(self):
@@ -505,7 +506,7 @@ class FileDuplicateFinder:
             
             return result
         except sqlite3.Error as e:
-            print(f"查找重复文件错误: {e}")
+            log_print(f"查找重复文件错误: {e}",LOG_LEVEL_ERROR)
             return []
     
     def compare_with_database(self, directory_path, recalculate_hash=True):
@@ -561,7 +562,7 @@ class FileDuplicateFinder:
                         hash_changed):
                         updated_files.append(file_path)
             except Exception as e:
-                print(f"比较文件时出错 {file_path}: {e}")
+                log_print(f"比较文件时出错 {file_path}: {e}",LOG_LEVEL_ERROR)
         
         return {
             'deleted': list(deleted_files),
@@ -579,7 +580,7 @@ class FileDuplicateFinder:
             try:
                 self.cursor.execute("DELETE FROM file_features WHERE file_path = ?", (deleted_file,))
             except sqlite3.Error as e:
-                print(f"删除文件记录错误 {deleted_file}: {e}")
+                log_print(f"删除文件记录错误 {deleted_file}: {e}",LOG_LEVEL_ERROR)
         
         # 处理新增和更新的文件
         files_to_update = comparison['new'] + comparison['updated']
@@ -587,7 +588,7 @@ class FileDuplicateFinder:
         attributes_batch = []
         processed_count = 0
         
-        print("正在更新数据库...")
+        log_print("正在更新数据库...",LOG_LEVEL_INFO)
         
         for file_path in files_to_update:
             try:
@@ -601,19 +602,19 @@ class FileDuplicateFinder:
                         self.batch_save_file_attributes(attributes_batch, show_ditail=False)
                         attributes_batch = []
                         # 显示进度
-                        print(f"已更新 {processed_count}/{len(files_to_update)} 个文件的属性")                        
+                        log_print(f"已更新 {processed_count}/{len(files_to_update)} 个文件的属性",LOG_LEVEL_INFO)                        
             except Exception as e:
-                print(f"更新文件记录错误 {file_path}: {e}")
+                log_print(f"更新文件记录错误 {file_path}: {e}",LOG_LEVEL_ERROR)
         
         # 处理剩余的文件
         if attributes_batch:
             self.batch_save_file_attributes(attributes_batch, show_ditail=False)
             attributes_batch = []
             # 显示进度
-            print(f"已更新 {processed_count}/{len(files_to_update)} 个文件的属性")                        
+            log_print(f"已更新 {processed_count}/{len(files_to_update)} 个文件的属性",LOG_LEVEL_INFO)                        
         
         self.conn.commit()
-        print(f"数据库更新完成，删除了 {len(comparison['deleted'])} 个文件记录，更新了 {processed_count} 个文件记录。")
+        log_print(f"数据库更新完成，删除了 {len(comparison['deleted'])} 个文件记录，更新了 {processed_count} 个文件记录。",LOG_LEVEL_INFO)
     
     def close(self):
         """关闭数据库连接"""
@@ -651,10 +652,10 @@ class FileDuplicateFinder:
             with open(json_file_path, 'w', encoding='utf-8') as f:
                 json.dump(output_data, f, ensure_ascii=False, indent=2)
             
-            print(f"成功将 {len(duplicates)} 组重复文件导出到 {json_file_path}")
+            log_print(f"成功将 {len(duplicates)} 组重复文件导出到 {json_file_path}",LOG_LEVEL_INFO)
             return True
         except Exception as e:
-            print(f"导出重复文件到JSON时出错: {e}")
+            log_print(f"导出重复文件到JSON时出错: {e}",LOG_LEVEL_ERROR)
             return False
 
     def handle_file(self, file_path,mode='r',data=None):
@@ -780,7 +781,7 @@ class FileDuplicateFinder:
             # 检查是否有记录被删除
             return self.cursor.rowcount > 0
         except sqlite3.Error as e:
-            print(f"从数据库中删除文件记录错误 {file_path}: {e}")
+            log_print(f"从数据库中删除文件记录错误 {file_path}: {e}",LOG_LEVEL_ERROR)
             self.conn.rollback()
             return False
 
@@ -812,7 +813,7 @@ def main(args: argparse.Namespace):
     if os.name == 'nt':
         directory_path = os.path.realpath(directory_path)
     if not os.path.isdir(directory_path):
-        print(f"错误: 目录 '{directory_path}' 不存在。")
+        log_print(f"错误: 目录 '{directory_path}' 不存在。",LOG_LEVEL_WARNING)
         return
     # 确保数据库文件路径是绝对路径
     db_path = os.path.join(directory_path,args.db)
@@ -846,10 +847,10 @@ def main(args: argparse.Namespace):
         # 导出重复文件到JSON
         if args.export_duplicates!=FILE_DUMP_FILENAME:
             if not db_exists:
-                print(f"错误: 数据库文件 '{db_path}' 不存在，请先扫描目录创建数据库。")
+                log_print(f"错误: 数据库文件 '{db_path}' 不存在，请先扫描目录创建数据库。",LOG_LEVEL_WARN)
                 return
             
-            print("正在查找重复文件...")
+            log_print("正在查找重复文件...",LOG_LEVEL_INFO)
             
             finder.export_duplicates_to_json(json_file_path)
             return
@@ -857,96 +858,96 @@ def main(args: argparse.Namespace):
         if args.chenged:
             # 仅搜索目录中发生变化的文件
             if not db_exists:
-                print(f"错误: 数据库文件 '{db_path}' 不存在，请先扫描目录创建数据库。")
+                log_print(f"错误: 数据库文件 '{db_path}' 不存在，请先扫描目录创建数据库。",LOG_LEVEL_WARN)
                 return
                             
             changed_files=finder.only_search_changed_files(directory_path)
             if not changed_files:
-                print("未找到发生变化的文件。")
+                log_print("未找到发生变化的文件。",LOG_LEVEL_INFO)
             else:
-                print(f"找到 {len(changed_files)} 个发生变化的文件:\n")
+                log_print(f"找到 {len(changed_files)} 个发生变化的文件:\n",LOG_LEVEL_INFO)
                 for file_path in changed_files:  
-                    print(f"  - {file_path}")
+                    log_print(f"  - {file_path}",LOG_LEVEL_INFO)
             return
         
         if args.find_duplicates:
             # 仅查找重复文件
-            print("正在查找重复文件...")
+            log_print("正在查找重复文件...",LOG_LEVEL_INFO)
             duplicates = finder.find_duplicate_files()
             
             if not duplicates:
-                print("未找到重复文件。")
+                log_print("未找到重复文件。",LOG_LEVEL_INFO)
             else:
-                print(f"找到 {len(duplicates)} 组重复文件:\n")
+                log_print(f"找到 {len(duplicates)} 组重复文件:\n",LOG_LEVEL_INFO)
                 for i, group in enumerate(duplicates, 1):
-                    print(f"组 {i}: 哈希值 {group['hash']}")
+                    log_print(f"组 {i}: 哈希值 {group['hash']}",LOG_LEVEL_INFO)
                     for file_info in group['files']:
-                        print(f"  - {file_info['path']}")
-                        print(f"    大小: {file_info['size']} 字节")
-                        print(f"    创建时间: {file_info['created']}")
-                        print(f"    修改时间: {file_info['modified']}")
-                        print(f"    所有者: {file_info['owner']}")
-                    print()
+                        log_print(f"  - {file_info['path']}",LOG_LEVEL_INFO)
+                        log_print(f"    大小: {file_info['size']} 字节",LOG_LEVEL_INFO)
+                        log_print(f"    创建时间: {file_info['created']}",LOG_LEVEL_INFO)
+                        log_print(f"    修改时间: {file_info['modified']}",LOG_LEVEL_INFO)
+                        log_print(f"    所有者: {file_info['owner']}",LOG_LEVEL_INFO)
+                    log_print("",LOG_LEVEL_INFO)
  
                 finder.export_duplicates_to_json(json_file_path)
         elif args.compare:
             # 比较目录与数据库
             if not db_exists:
-                print(f"错误: 数据库文件 '{args.db}' 不存在，请先扫描目录创建数据库。")
+                log_print(f"错误: 数据库文件 '{args.db}' 不存在，请先扫描目录创建数据库。",LOG_LEVEL_WARN)
                 return
                 
-            print(f"正在比较目录 '{directory_path}' 与数据库...")
+            log_print(f"正在比较目录 '{directory_path}' 与数据库...",LOG_LEVEL_INFO)
             changes = finder.compare_with_database(directory_path)
             
-            print(f"\n目录变更分析结果:\n{'-' * 50}")
+            log_print(f"\n目录变更分析结果:\n{'-' * 50}",LOG_LEVEL_INFO)
             
             if changes['deleted']:
-                print(f"删除的文件 ({len(changes['deleted'])}):")
+                log_print(f"删除的文件 ({len(changes['deleted'])}):",LOG_LEVEL_INFO)
                 for file_path in changes['deleted'][:5]:  # 只显示前5个
-                    print(f"  - {file_path}")
+                    log_print(f"  - {file_path}",LOG_LEVEL_INFO)    
                 if len(changes['deleted']) > 5:
-                    print(f"  ... 还有 {len(changes['deleted']) - 5} 个文件")
+                    log_print(f"  ... 还有 {len(changes['deleted']) - 5} 个文件",LOG_LEVEL_INFO)
             else:
-                print("没有删除的文件。")
+                log_print("没有删除的文件。",LOG_LEVEL_INFO)
                 
             if changes['new']:
-                print(f"\n新增的文件 ({len(changes['new'])}):")
+                log_print(f"\n新增的文件 ({len(changes['new'])}):",LOG_LEVEL_INFO)
                 for file_path in changes['new'][:5]:  # 只显示前5个
-                    print(f"  - {file_path}")
+                    log_print(f"  - {file_path}",LOG_LEVEL_INFO)
                 if len(changes['new']) > 5:
-                    print(f"  ... 还有 {len(changes['new']) - 5} 个文件")
+                    log_print(f"  ... 还有 {len(changes['new']) - 5} 个文件",LOG_LEVEL_INFO)
             else:
-                print("没有新增的文件。")
+                log_print("没有新增的文件。",LOG_LEVEL_INFO)
                 
             if changes['updated']:
-                print(f"\n更新的文件 ({len(changes['updated'])}):")
+                log_print(f"\n更新的文件 ({len(changes['updated'])}):",LOG_LEVEL_INFO)
                 for file_path in changes['updated'][:5]:  # 只显示前5个
-                    print(f"  - {file_path}")
+                    log_print(f"  - {file_path}",LOG_LEVEL_INFO)
                 if len(changes['updated']) > 5:
-                    print(f"  ... 还有 {len(changes['updated']) - 5} 个文件")
+                    log_print(f"  ... 还有 {len(changes['updated']) - 5} 个文件",LOG_LEVEL_INFO)
             else:
-                print("没有更新的文件。")
+                log_print("没有更新的文件。",LOG_LEVEL_INFO)
                 
             # 询问是否更新数据库
             if changes['deleted'] or changes['new'] or changes['updated']:
                 update = input("\n是否要根据目录文件更新数据库？(y/n): ").lower()
                 if update == 'y':
                     finder.update_database(directory_path)
- 
+                    log_print("数据库已更新。",LOG_LEVEL_INFO)
                     finder.export_duplicates_to_json(json_file_path)
         elif args.update:
             # 更新数据库
             if not db_exists:
-                print(f"错误: 数据库文件 '{args.db}' 不存在，请先扫描目录创建数据库。")
+                log_print(f"错误: 数据库文件 '{args.db}' 不存在，请先扫描目录创建数据库。",LOG_LEVEL_WARN)
                 return
                 
-            print(f"正在更新数据库以匹配目录 '{directory_path}'...")
+            log_print(f"正在更新数据库以匹配目录 '{directory_path}'...",LOG_LEVEL_INFO)
             finder.update_database(directory_path)
                        
             finder.export_duplicates_to_json(json_file_path)
         else:
             # 默认行为：扫描目录
-            print(f"正在扫描目录 '{directory_path}' 及其子目录...")
+            log_print(f"正在扫描目录 '{directory_path}' 及其子目录...",LOG_LEVEL_INFO)
             finder.scan_directory(directory_path)
             
             # 根据命令行选项决定是否查找重复文件，默认查找
@@ -954,20 +955,21 @@ def main(args: argparse.Namespace):
                 duplicates = finder.find_duplicate_files()
                 
                 if not duplicates:
-                    print("未找到重复文件。")
+                    log_print("未找到重复文件。",LOG_LEVEL_INFO)
                 else:
-                    print(f"找到 {len(duplicates)} 组重复文件:\n")
+                    log_print(f"找到 {len(duplicates)} 组重复文件:\n",LOG_LEVEL_INFO)
                     for i, group in enumerate(duplicates, 1):
-                        print(f"组 {i}: 哈希值 {group['hash']}")
+                        log_print(f"组 {i}: 哈希值 {group['hash']}",LOG_LEVEL_INFO)
                         for file_info in group['files'][:3]:  # 每个组只显示前3个文件
-                            print(f"  - {file_info['path']}")
-                            print(f"    大小: {file_info['size']} 字节")
-                            print(f"    修改时间: {file_info['modified']}")
+                            log_print(f"  - {file_info['path']}",LOG_LEVEL_INFO)
+                            log_print(f"    大小: {file_info['size']} 字节",LOG_LEVEL_INFO)
+                            log_print(f"    修改时间: {file_info['modified']}",LOG_LEVEL_INFO)
                         if len(group['files']) > 3:
-                            print(f"  ... 还有 {len(group['files']) - 3} 个文件")
-                        print()
+                            log_print(f"  ... 还有 {len(group['files']) - 3} 个文件",LOG_LEVEL_INFO)
+                        log_print("",LOG_LEVEL_INFO)
                         
                     finder.export_duplicates_to_json(json_file_path)
+                    log_print(f"重复文件已导出到 JSON 文件: {json_file_path}",LOG_LEVEL_INFO)
     finally:
         finder.close()
         

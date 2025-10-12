@@ -16,7 +16,7 @@ from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QFont, QColor, QIcon, QImage, QPixmap
 from filedup.file_duplicate_finder import FileDuplicateFinder
 from filedup.rw_reg_handlers import RWRegHandlers, get_RWRegHandlers
-from filedup.global_vars import FILE_FEATURES_DB_FILENAME
+from filedup.global_vars import FILE_FEATURES_DB_FILENAME,log_print,LOG_LEVEL_WARN
 import base64
 import argparse
 
@@ -26,7 +26,7 @@ try:
     HAS_WINSHELL = True
 except ImportError:
     HAS_WINSHELL = False
-    print("警告: 未安装winshell库，回收站功能可能不可用")
+    log_print("警告: 未安装winshell库，回收站功能可能不可用",LOG_LEVEL_WARN)
 
 class DuplicateFileHandler(QMainWindow):
     def __init__(self):
