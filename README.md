@@ -239,6 +239,8 @@ python run.py <子命令> <目录路径> [参数]
 d:\MyProg\python\filedup/
 ├── LICENSE
 ├── README.md
+├── build_script.py       # 程序打包脚本
+├── filedup.spec          # PyInstaller打包配置
 ├── filedup/              # 核心功能模块
 │   ├── __init__.py
 │   ├── file_duplicate_finder.py  # 主功能实现
@@ -248,7 +250,8 @@ d:\MyProg\python\filedup/
 │   ├── rw_docx_wps.py    # Word/WPS文档处理器
 │   ├── rw_img.py         # 图像文件处理器
 │   ├── rw_interface.py   # 文件处理器接口
-│   └── rw_reg_handlers.py # 处理器注册管理
+│   ├── rw_reg_handlers.py # 处理器注册管理
+│   └── rw_video.py       # 视频文件处理器
 ├── gui_dupl/             # GUI界面模块
 │   ├── __init__.py
 │   └── handle_dupl.py    # GUI界面实现
@@ -388,17 +391,17 @@ python build_script.py
 
 ### 运行打包后的程序
 
-打包完成后，程序文件将位于`dist/run`目录中：
+打包完成后，程序文件将位于`dist/filedup`目录中：
 
-- 运行程序：双击`dist/run/run.exe`文件
-- 注意：请不要单独移动或复制`run.exe`文件，需要确保整个`dist/run`文件夹的完整性
+- 运行程序：双击`dist/filedup/filedup.exe`文件
+- 注意：请不要单独移动或复制`filedup.exe`文件，需要确保整个`dist/filedup`文件夹的完整性
 
 ### 分享程序
 
 如需与他人分享程序，请：
-1. 复制整个`dist/run`文件夹
+1. 复制整个`dist/filedup`文件夹
 2. 将整个文件夹发送给他人
-3. 接收者只需双击文件夹中的`run.exe`即可运行程序，无需安装Python或其他依赖
+3. 接收者只需双击文件夹中的`filedup.exe`即可运行程序，无需安装Python或其他依赖
 
 ## 许可证
 

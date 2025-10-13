@@ -44,4 +44,4 @@ def norm_exists_path(path,skip_link=True):
         
 #目前版本号
 #更新时间：2025-10-10
-VERSION="0.1.0"
+VERSION="0.1.2"

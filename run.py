@@ -1,6 +1,6 @@
 import sys
 from filedup.file_duplicate_finder import main as filedup_main,add_args as filedup_add_args
-from filedup.global_vars import log_print,LOG_LEVEL_ERROR,set_log_level,LOG_LEVEL_INFO
+from filedup.global_vars import log_print,LOG_LEVEL_ERROR,set_log_level,LOG_LEVEL_INFO,VERSION
 from gui_dupl.handle_dupl import main as gui_main,add_args as gui_add_args
 import argparse
 
@@ -16,6 +16,7 @@ def main():
     parser_gui = subparsers.add_parser('gui', help='使用图形界面')
     gui_add_args(parser_gui)
     parser.add_argument('directory', type=str, help='要查找重复文件的目录')
+    parser.add_argument('-V','--version', action='version', version=f'%(prog)s {VERSION}')
     
     try:   
         args = parser.parse_known_args()[0]
