@@ -18,7 +18,7 @@ def main():
     parser.add_argument('directory', type=str, help='要查找重复文件的目录')
     
     try:   
-        args = parser.parse_args()
+        args = parser.parse_known_args()[0]
         print(args)
     except argparse.ArgumentError as e:
         log_print(f"参数错误: {e}",log_level=LOG_LEVEL_ERROR)

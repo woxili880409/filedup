@@ -349,9 +349,9 @@ class DuplicateFileHandler(QMainWindow):
         
         item = selected_items[0]
         file_path = item.data(0, Qt.UserRole)
-        if file_path and os.path.exists(file_path):
+        if file_path :
             self.display_file_content(file_path)
-    
+           
     def resizeEvent(self, event):
         # 窗口大小变化时，重新缩放图片以保持纵横比例
         super().resizeEvent(event)
@@ -366,6 +366,14 @@ class DuplicateFileHandler(QMainWindow):
         """显示文件内容"""
         
         try:
+            # 检查文件是否存在
+            if not os.path.exists(file_path):
+                # log_print(f"文件不存在: {file_path}",log_level=LOG_LEVEL_ERROR)                
+                self.content_view.setText(f"文件不存在: {file_path}")
+                self.content_view.show()
+                self.image_scroll_area.hide()
+                return
+            
             # 读取文件内容
             file_type, content=self.rw_reg_handlers.handle_file(file_path, mode='r', data=None)
             
@@ -492,6 +500,23 @@ class DuplicateFileHandler(QMainWindow):
             for file_idx in range(group_item.childCount()):
                 file_item = group_item.child(file_idx)
                 # 只处理可见的文件项
+                if file_item.isHidden():
+                    continue
+                    
+                # file_path = file_item.data(0, Qt.UserRole)
+                
+                # 获取修改时间
+                modified_str = file_item.text(2)
+                try:
+                    modified_time = datetime.strptime(modified_str, '%Y-%m-%d %H:%M:%S')
+                    
+                    if oldest_time is None or modified_time < oldest_time:
+                        oldest_time = modified_time
+                        oldest_item = file_item
+                except:
+                    continue
+            
+            if oldest_item:
                 oldest_item.setCheckState(0, Qt.Checked)
                 self.selected_files.add(oldest_item.data(0, Qt.UserRole))
     

@@ -27,10 +27,20 @@ def set_log_level(log_level):
     global LOG_LEVEL
     LOG_LEVEL=log_level
 
-def log_print(*args,log_level=LOG_LEVEL_INFO,**kwargs,):
+def log_print(*args,log_level=LOG_LEVEL_INFO):
     """打印日志"""
     if log_level>=LOG_LEVEL:
-        print(*args, **kwargs)
+        print(*args)
+
+def norm_exists_path(path,skip_link=True):
+    """归一化路径"""
+    if not os.path.exists(path):
+        return None
+    if skip_link and os.path.islink(path):
+        return None
+    else:
+        path=os.path.realpath(os.path.abspath(path))
+    return os.path.normpath(path)
         
 #目前版本号
 #更新时间：2025-10-10

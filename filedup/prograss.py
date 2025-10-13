@@ -16,3 +16,8 @@ class ProgressBar:
 
     def finish(self):
         print('\r[{0:<{1}}] {2:.2f}%'.format('#' * 100, 100, 100))
+        
+    def reset(self,total):
+        self.current = 0
+        self.total = total
+        

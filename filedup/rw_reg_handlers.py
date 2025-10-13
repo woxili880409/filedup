@@ -2,7 +2,7 @@ import os
 import json
 import filedup.rw_interface
 from filedup.global_vars import REGISTERED_HANDLERS_FILENAME, log_print, \
-    FILE_FEATURES_DB_FILENAME,LOG_LEVEL_INFO,LOG_LEVEL_WARN,LOG_LEVEL_ERROR
+    FILE_FEATURES_DB_FILENAME,LOG_LEVEL_INFO,LOG_LEVEL_WARN,LOG_LEVEL_ERROR,LOG_LEVEL_DEBUG
 
 class RWRegHandlers:
     """注册文件处理器"""
@@ -20,7 +20,7 @@ class RWRegHandlers:
         """注册文件处理函数"""
         #根据json文件中的key:value，导入key模块，并注册文件处理器
         if not handler_json["enabled"]:
-            log_print(f"文件处理器 {handler_json['ext']} 已禁用，不注册",log_level=LOG_LEVEL_WARN)
+            # log_print(f"文件处理器 {handler_json['ext']} 已禁用，不注册",log_level=LOG_LEVEL_WARN)
             return
         # 正确导入子模块，使用fromlist参数确保导入的是子模块而不是包
         handler_module = __import__(handler_json["module"], fromlist=[''])
@@ -30,7 +30,7 @@ class RWRegHandlers:
         
         existing_handler = next((x for x in self.register_handlers if x["ext"] == reged["ext"]), None)
         if existing_handler:
-            log_print(f"文件处理器 {reged['ext']} 已存在，不重复注册",log_level=LOG_LEVEL_WARN)
+            log_print(f"文件处理器 {reged['ext']} 已存在，不重复注册",log_level=LOG_LEVEL_DEBUG)
             return        
         self.register_handlers.append({"ext":reged["ext"],"handler":reged["handler"]})
         log_print(f"注册文件处理器: {handler_json['ext']}",log_level=LOG_LEVEL_INFO)

@@ -21,6 +21,7 @@ if __name__ == '__main__':
         '--hidden-import', 'filedup.file_duplicate_finder',
         '--hidden-import', 'filedup.global_vars',
         '--hidden-import', 'filedup.prograss',
+        '--hidden-import', 'filedup.rw_video',
         '--hidden-import', 'filedup.rw_docx_wps',
         '--hidden-import', 'filedup.rw_img',
         '--hidden-import', 'filedup.rw_interface',
